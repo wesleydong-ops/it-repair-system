@@ -198,7 +198,7 @@ const defaultWorkorders = [
   { id: '3', orderNo: 'WO-20240115-003', applicantName: '王五', department: '财务部', location: 'A栋1楼101室', extension: '8003', email: 'wangwu@company.com', webexId: 'wangwu', assetNo: 'IT-2024-003', deviceType: '打印机', deviceLocation: 'A区-1楼', projectId: '3', projectName: '硬件故障', description: '打印机卡纸', repairType: 'internal', notificationChannels: ['email'], priority: 'normal', status: 'processing', area: 'A', engineerId: '2', engineerName: '陈工', statusLog: '', createTime: '2024-01-15 11:45:00', updateTime: '2024-01-15 12:00:00' }
 ]
 
-const workorders = loadWorkorders()
+let workorders = loadWorkorders()
 
 const assignEngineer = (area: string) => {
   const currentUsers = loadUsers()
@@ -528,11 +528,13 @@ app.delete('/api/admin/users/:id', authenticateToken, (req, res) => {
 app.post('/api/workorder/submit', async (req, res) => {
   const { applicantName, department, location, extension, email, webexId, assetNo, deviceType, deviceLocation, projectId, description, repairType, notificationChannels, priority, area } = req.body
 
-  const assignedEngineer = assignEngineer(department)
+  const currentWorkorders = loadWorkorders()
+  
+  const assignedEngineer = assignEngineer(area)
   
   const newOrder = {
     id: Date.now().toString(),
-    orderNo: `WO-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}-${String(workorders.length + 1).padStart(3, '0')}`,
+    orderNo: `WO-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}-${String(currentWorkorders.length + 1).padStart(3, '0')}`,
     applicantName,
     department,
     location,
@@ -557,8 +559,8 @@ app.post('/api/workorder/submit', async (req, res) => {
     updateTime: new Date().toLocaleString('zh-CN')
   }
   
-  workorders.push(newOrder)
-  saveWorkorders(workorders)
+  currentWorkorders.push(newOrder)
+  saveWorkorders(currentWorkorders)
 
   if (assignedEngineer) {
     if (assignedEngineer.email) {
@@ -648,13 +650,14 @@ app.post('/api/workorder/:id/accept', authenticateToken, async (req, res) => {
   const { id } = req.params
   const userId = (req as any).user.id
   
+  workorders = loadWorkorders()
   const order = workorders.find(o => o.id === id)
   
   if (!order) {
     return res.status(404).json({ success: false, message: '工单不存在' })
   }
   
-  if (order.status !== 'pending') {
+  if (!['pending', 'assigned'].includes(order.status)) {
     return res.status(400).json({ success: false, message: '工单状态不允许接单' })
   }
   
@@ -692,6 +695,7 @@ app.post('/api/workorder/:id/accept', authenticateToken, async (req, res) => {
 app.post('/api/workorder/:id/start', authenticateToken, (req, res) => {
   const { id } = req.params
   
+  workorders = loadWorkorders()
   const order = workorders.find(o => o.id === id)
   
   if (!order) {
@@ -712,6 +716,7 @@ app.post('/api/workorder/:id/start', authenticateToken, (req, res) => {
 app.post('/api/workorder/:id/complete', authenticateToken, (req, res) => {
   const { id } = req.params
   
+  workorders = loadWorkorders()
   const order = workorders.find(o => o.id === id)
   
   if (!order) {
@@ -732,6 +737,7 @@ app.post('/api/workorder/:id/complete', authenticateToken, (req, res) => {
 app.post('/api/workorder/:id/close', authenticateToken, (req, res) => {
   const { id } = req.params
   
+  workorders = loadWorkorders()
   const order = workorders.find(o => o.id === id)
   
   if (!order) {
@@ -753,6 +759,7 @@ app.post('/api/workorder/:id/external', authenticateToken, (req, res) => {
   const { id } = req.params
   const { reason, parts, estimatedCost, repairCompany } = req.body
   
+  workorders = loadWorkorders()
   const order = workorders.find(o => o.id === id)
   
   if (!order) {
