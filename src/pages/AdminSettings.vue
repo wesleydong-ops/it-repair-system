@@ -1,0 +1,325 @@
+<template>
+  <div class="min-h-screen bg-gray-100">
+    <aside class="fixed left-0 top-0 h-screen w-64 bg-white shadow-lg">
+      <div class="p-6 border-b">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center">
+            <Wrench class="w-6 h-6 text-white" />
+          </div>
+          <span class="font-bold text-gray-800">IT报修系统</span>
+        </div>
+      </div>
+      <nav class="p-4">
+        <ul class="space-y-2">
+          <li>
+            <a href="/admin" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+              <LayoutDashboard class="w-5 h-5" />
+              仪表盘
+            </a>
+          </li>
+          <li>
+            <a href="/admin/users" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+              <Users class="w-5 h-5" />
+              用户管理
+            </a>
+          </li>
+          <li>
+            <a href="/admin/groups" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+              <Users class="w-5 h-5" />
+              工程师分组
+            </a>
+          </li>
+          <li>
+            <a href="/admin/projects" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+              <Settings class="w-5 h-5" />
+              维修项目
+            </a>
+          </li>
+          <li>
+            <a href="/admin/statistics" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+              <BarChart3 class="w-5 h-5" />
+              数据统计
+            </a>
+          </li>
+          <li>
+            <a href="/admin/settings" class="flex items-center gap-3 px-4 py-3 bg-primary text-white rounded-lg">
+              <Settings class="w-5 h-5" />
+              系统设置
+            </a>
+          </li>
+        </ul>
+      </nav>
+      <div class="absolute bottom-0 left-0 right-0 p-4 border-t">
+        <button @click="handleLogout" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors w-full">
+          <LogOut class="w-5 h-5" />
+          退出登录
+        </button>
+      </div>
+    </aside>
+
+    <main class="ml-64 p-8">
+      <header class="mb-8">
+        <h1 class="text-2xl font-bold text-gray-800">系统设置</h1>
+        <p class="text-gray-600 mt-2">配置系统参数和接口设置</p>
+      </header>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="card fade-in">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <Mail class="w-5 h-5 mr-2 text-primary" />
+            SMTP邮件配置
+          </h3>
+          <div class="space-y-4">
+            <div>
+              <label class="form-label">SMTP服务器</label>
+              <input v-model="settings.smtpHost" type="text" class="form-input" />
+            </div>
+            <div>
+              <label class="form-label">SMTP端口</label>
+              <input v-model.number="settings.smtpPort" type="number" class="form-input" />
+            </div>
+            <div>
+              <label class="form-label">发件人邮箱</label>
+              <input v-model="settings.smtpUsername" type="email" class="form-input" />
+            </div>
+            <div>
+              <label class="form-label">邮箱密码/授权码</label>
+              <input v-model="settings.smtpPassword" type="password" class="form-input" />
+            </div>
+          </div>
+          <button @click="testEmail" class="btn-outline mt-4">
+            <Send class="w-4 h-4 inline mr-1" />
+            测试邮件发送
+          </button>
+        </div>
+
+        <div class="card fade-in">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <MessageSquare class="w-5 h-5 mr-2 text-primary" />
+            Webex机器人配置
+          </h3>
+          <div class="space-y-4">
+            <div>
+              <label class="form-label">Webex Token</label>
+              <input v-model="settings.webexToken" type="text" class="form-input" />
+            </div>
+            <div>
+              <label class="form-label">Webex Room ID</label>
+              <input v-model="settings.webexRoomId" type="text" class="form-input" />
+            </div>
+          </div>
+          <button @click="testWebex" class="btn-outline mt-4">
+            <Send class="w-4 h-4 inline mr-1" />
+            测试消息发送
+          </button>
+        </div>
+
+        <div class="card fade-in">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <Phone class="w-5 h-5 mr-2 text-primary" />
+            分机呼叫配置
+          </h3>
+          <div class="space-y-4">
+            <div>
+              <label class="form-label">分机服务器地址</label>
+              <input v-model="settings.extensionServer" type="text" class="form-input" />
+            </div>
+            <div>
+              <label class="form-label">分机端口</label>
+              <input v-model.number="settings.extensionPort" type="number" class="form-input" />
+            </div>
+          </div>
+        </div>
+
+        <div class="card fade-in">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <Globe class="w-5 h-5 mr-2 text-primary" />
+            系统配置
+          </h3>
+          <div class="space-y-4">
+            <div>
+              <label class="form-label">系统URL</label>
+              <input v-model="settings.systemUrl" type="text" class="form-input" />
+            </div>
+            <div>
+              <label class="form-label">HTTPS端口</label>
+              <input v-model.number="settings.httpsPort" type="number" class="form-input" />
+            </div>
+            <div>
+              <label class="form-label">证书存放路径</label>
+              <input v-model="settings.certPath" type="text" class="form-input" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card fade-in mt-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+          <Bell class="w-5 h-5 mr-2 text-primary" />
+          通知设置
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div>
+              <p class="font-medium text-gray-800">工单提交通知</p>
+              <p class="text-sm text-gray-500">新工单提交时发送通知</p>
+            </div>
+            <button
+              @click="settings.notifications.orderSubmit = !settings.notifications.orderSubmit"
+              :class="[
+                'relative w-12 h-6 rounded-full transition-colors',
+                settings.notifications.orderSubmit ? 'bg-primary' : 'bg-gray-300'
+              ]"
+            >
+              <span
+                :class="[
+                  'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
+                  settings.notifications.orderSubmit ? 'translate-x-7' : 'translate-x-1'
+                ]"
+              ></span>
+            </button>
+          </div>
+          <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div>
+              <p class="font-medium text-gray-800">工单接单通知</p>
+              <p class="text-sm text-gray-500">工程师接单时发送通知</p>
+            </div>
+            <button
+              @click="settings.notifications.orderAccept = !settings.notifications.orderAccept"
+              :class="[
+                'relative w-12 h-6 rounded-full transition-colors',
+                settings.notifications.orderAccept ? 'bg-primary' : 'bg-gray-300'
+              ]"
+            >
+              <span
+                :class="[
+                  'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
+                  settings.notifications.orderAccept ? 'translate-x-7' : 'translate-x-1'
+                ]"
+              ></span>
+            </button>
+          </div>
+          <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div>
+              <p class="font-medium text-gray-800">工单完成通知</p>
+              <p class="text-sm text-gray-500">工单完成时发送领机通知</p>
+            </div>
+            <button
+              @click="settings.notifications.orderComplete = !settings.notifications.orderComplete"
+              :class="[
+                'relative w-12 h-6 rounded-full transition-colors',
+                settings.notifications.orderComplete ? 'bg-primary' : 'bg-gray-300'
+              ]"
+            >
+              <span
+                :class="[
+                  'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
+                  settings.notifications.orderComplete ? 'translate-x-7' : 'translate-x-1'
+                ]"
+              ></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end mt-8">
+        <button @click="saveSettings" class="btn-primary">
+          <Save class="w-4 h-4 inline mr-1" />
+          保存设置
+        </button>
+      </div>
+    </main>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { reactive, onMounted } from 'vue'
+import { Wrench, LayoutDashboard, Users, Settings, BarChart3, LogOut, Mail, MessageSquare, Phone, Globe, Bell, Send, Save } from 'lucide-vue-next'
+import { authApi, adminApi } from '../api'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+
+const settings = reactive({
+  smtpHost: 'smtp.example.com',
+  smtpPort: 25,
+  smtpUsername: 'it-support@example.com',
+  smtpPassword: '',
+  smtpSecure: false,
+  webexToken: '',
+  webexRoomId: '',
+  extensionServer: 'pbx.example.com',
+  extensionPort: 5060,
+  systemUrl: 'https://localhost:8443',
+  httpsPort: 443,
+  certPath: '/etc/ssl/certs/',
+  notifications: {
+    orderSubmit: true,
+    orderAccept: true,
+    orderComplete: true
+  }
+})
+
+const testEmail = async () => {
+  const testEmailAddress = prompt('请输入测试邮箱地址：')
+  if (!testEmailAddress) return
+  
+  try {
+    const response = await adminApi.testEmail(testEmailAddress)
+    if (response.data.success) {
+      alert('测试邮件发送成功，请检查邮箱')
+    } else {
+      alert('测试邮件发送失败：' + response.data.message)
+    }
+  } catch (error) {
+    alert('测试邮件发送失败：网络错误')
+  }
+}
+
+const testWebex = () => {
+  alert('Webex测试功能开发中')
+}
+
+const saveSettings = async () => {
+  try {
+    const response = await adminApi.updateSettings(settings)
+    if (response.data.success) {
+      alert('设置保存成功')
+    } else {
+      alert('设置保存失败：' + response.data.message)
+    }
+  } catch (error) {
+    alert('设置保存失败：网络错误')
+  }
+}
+
+const loadSettings = async () => {
+  try {
+    const response = await adminApi.getSettings()
+    if (response.data.success) {
+      const data = response.data.data
+      settings.smtpHost = data.smtpHost || settings.smtpHost
+      settings.smtpPort = data.smtpPort || settings.smtpPort
+      settings.smtpUsername = data.smtpUsername || settings.smtpUsername
+      settings.smtpPassword = data.smtpPassword || settings.smtpPassword
+      settings.smtpSecure = data.smtpSecure || settings.smtpSecure
+      settings.webexToken = data.webexToken || settings.webexToken
+      settings.webexRoomId = data.webexRoomId || settings.webexRoomId
+      settings.extensionServer = data.extensionServer || settings.extensionServer
+      settings.extensionPort = data.extensionPort || settings.extensionPort
+      settings.systemUrl = data.systemUrl || settings.systemUrl
+    }
+  } catch (error) {
+    console.log('加载设置失败')
+  }
+}
+
+const handleLogout = () => {
+  authApi.logout()
+  router.push('/admin/login')
+}
+
+onMounted(() => {
+  loadSettings()
+})
+</script>
