@@ -10,13 +10,13 @@ import { config } from './config'
 
 const app = express()
 
-const SSL_OPTIONS: { key: Buffer | undefined; cert: Buffer | undefined } = {
+const SSL_OPTIONS = {
   key: fs.existsSync(path.join(config.certPath, 'server.key')) 
     ? fs.readFileSync(path.join(config.certPath, 'server.key')) 
-    : undefined,
+    : null,
   cert: fs.existsSync(path.join(config.certPath, 'server.crt')) 
     ? fs.readFileSync(path.join(config.certPath, 'server.crt')) 
-    : undefined
+    : null
 }
 
 app.use(cors())
@@ -198,37 +198,7 @@ const defaultWorkorders = [
   { id: '3', orderNo: 'WO-20240115-003', applicantName: '王五', department: '财务部', location: 'A栋1楼101室', extension: '8003', email: 'wangwu@company.com', webexId: 'wangwu', assetNo: 'IT-2024-003', deviceType: '打印机', deviceLocation: 'A区-1楼', projectId: '3', projectName: '硬件故障', description: '打印机卡纸', repairType: 'internal', notificationChannels: ['email'], priority: 'normal', status: 'processing', area: 'A', engineerId: '2', engineerName: '陈工', statusLog: '', createTime: '2024-01-15 11:45:00', updateTime: '2024-01-15 12:00:00' }
 ]
 
-let workorders = loadWorkorders()
-
-const assignEngineer = (area: string) => {
-  const currentUsers = loadUsers()
-  let targetEngineers: User[]
-  
-  if (area === 'A区') {
-    targetEngineers = currentUsers.filter(u => u.role === 'engineer' && u.area === 'A')
-  } else if (area === 'C区' || area === 'K区') {
-    targetEngineers = currentUsers.filter(u => u.role === 'engineer' && u.area === 'CK')
-  } else {
-    targetEngineers = currentUsers.filter(u => u.role === 'engineer')
-  }
-  
-  if (targetEngineers.length === 0) {
-    const allEngineers = currentUsers.filter(u => u.role === 'engineer')
-    if (allEngineers.length === 0) return null
-    targetEngineers = allEngineers
-  }
-  
-  const engineerOrderCount: Record<string, number> = {}
-  targetEngineers.forEach(eng => {
-    engineerOrderCount[eng.id] = workorders.filter(w => w.engineerId === eng.id && w.status !== 'completed').length
-  })
-  
-  const sortedEngineers = [...targetEngineers].sort((a, b) => 
-    (engineerOrderCount[a.id] || 0) - (engineerOrderCount[b.id] || 0)
-  )
-  
-  return sortedEngineers[0] || null
-}
+const workorders = loadWorkorders()
 
 const createEmailTransporter = () => {
   return nodemailer.createTransport({
@@ -527,14 +497,10 @@ app.delete('/api/admin/users/:id', authenticateToken, (req, res) => {
 
 app.post('/api/workorder/submit', async (req, res) => {
   const { applicantName, department, location, extension, email, webexId, assetNo, deviceType, deviceLocation, projectId, description, repairType, notificationChannels, priority, area } = req.body
-
-  const currentWorkorders = loadWorkorders()
-  
-  const assignedEngineer = assignEngineer(area)
   
   const newOrder = {
     id: Date.now().toString(),
-    orderNo: `WO-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}-${String(currentWorkorders.length + 1).padStart(3, '0')}`,
+    orderNo: `WO-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}-${String(workorders.length + 1).padStart(3, '0')}`,
     applicantName,
     department,
     location,
@@ -550,41 +516,17 @@ app.post('/api/workorder/submit', async (req, res) => {
     repairType,
     notificationChannels,
     priority,
-    status: assignedEngineer ? 'assigned' : 'pending',
+    status: 'pending',
     area,
-    engineerId: assignedEngineer?.id || '',
-    engineerName: assignedEngineer?.name || '',
-    statusLog: assignedEngineer ? `工单已分配给工程师 ${assignedEngineer.name}` : '',
+    engineerId: '',
+    engineerName: '',
+    statusLog: '',
     createTime: new Date().toLocaleString('zh-CN'),
     updateTime: new Date().toLocaleString('zh-CN')
   }
   
-  currentWorkorders.push(newOrder)
-  saveWorkorders(currentWorkorders)
-
-  if (assignedEngineer) {
-    if (assignedEngineer.email) {
-      const emailHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #1E3A5F; border-bottom: 2px solid #6BB3D9; padding-bottom: 10px;">IT报修系统 - 新工单分配</h2>
-          <p>尊敬的 ${assignedEngineer.name} 工程师：</p>
-          <p>您有新的报修工单需要处理，以下是工单详情：</p>
-          <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
-            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>工单号：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${newOrder.orderNo}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>申请人：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${applicantName}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>区域：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${department}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>设备类型：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${deviceType}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>紧急等级：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${priority === 'urgent' ? '紧急' : '普通'}</td></tr>
-            <tr><td style="padding: 8px;"><strong>故障描述：</strong></td><td style="padding: 8px;">${description}</td></tr>
-          </table>
-          <p>请及时处理工单，感谢您的支持！</p>
-          <p><a href="${systemSettings.systemUrl}/admin/workorders" style="color: #6BB3D9; text-decoration: none;">点击查看工单详情</a></p>
-          <p style="color: #999; font-size: 12px;">此邮件由系统自动发送，请勿回复。</p>
-        </div>
-      `
-      sendEmail(assignedEngineer.email, `新工单分配 - ${newOrder.orderNo}`, emailHtml)
-    }
-  }
+  workorders.push(newOrder)
+  saveWorkorders(workorders)
   
   if (notificationChannels.includes('email') && email) {
     const emailHtml = `
@@ -650,14 +592,13 @@ app.post('/api/workorder/:id/accept', authenticateToken, async (req, res) => {
   const { id } = req.params
   const userId = (req as any).user.id
   
-  workorders = loadWorkorders()
   const order = workorders.find(o => o.id === id)
   
   if (!order) {
     return res.status(404).json({ success: false, message: '工单不存在' })
   }
   
-  if (!['pending', 'assigned'].includes(order.status)) {
+  if (order.status !== 'pending') {
     return res.status(400).json({ success: false, message: '工单状态不允许接单' })
   }
   
@@ -695,7 +636,6 @@ app.post('/api/workorder/:id/accept', authenticateToken, async (req, res) => {
 app.post('/api/workorder/:id/start', authenticateToken, (req, res) => {
   const { id } = req.params
   
-  workorders = loadWorkorders()
   const order = workorders.find(o => o.id === id)
   
   if (!order) {
@@ -716,7 +656,6 @@ app.post('/api/workorder/:id/start', authenticateToken, (req, res) => {
 app.post('/api/workorder/:id/complete', authenticateToken, (req, res) => {
   const { id } = req.params
   
-  workorders = loadWorkorders()
   const order = workorders.find(o => o.id === id)
   
   if (!order) {
@@ -737,7 +676,6 @@ app.post('/api/workorder/:id/complete', authenticateToken, (req, res) => {
 app.post('/api/workorder/:id/close', authenticateToken, (req, res) => {
   const { id } = req.params
   
-  workorders = loadWorkorders()
   const order = workorders.find(o => o.id === id)
   
   if (!order) {
@@ -759,7 +697,6 @@ app.post('/api/workorder/:id/external', authenticateToken, (req, res) => {
   const { id } = req.params
   const { reason, parts, estimatedCost, repairCompany } = req.body
   
-  workorders = loadWorkorders()
   const order = workorders.find(o => o.id === id)
   
   if (!order) {
@@ -773,7 +710,7 @@ app.post('/api/workorder/:id/external', authenticateToken, (req, res) => {
   res.json({ success: true, message: '外修申请已提交', data: { reason, parts, estimatedCost, repairCompany } })
 })
 
-app.get('/api/admin/groups', authenticateToken, (_req, res) => {
+app.get('/api/admin/groups', authenticateToken, (req, res) => {
   const groups = [
     { id: '1', name: 'A区维修组', area: 'A', description: '负责A区所有办公区域、设备报修工单', isActive: true, members: users.filter(u => u.role === 'engineer' && u.area === 'A') },
     { id: '2', name: 'CK区维修组', area: 'CK', description: '负责CK区所有区域、设备报修工单', isActive: true, members: users.filter(u => u.role === 'engineer' && u.area === 'CK') }

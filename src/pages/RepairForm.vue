@@ -42,15 +42,24 @@
                 <p v-if="errors.applicantName" class="text-red-500 text-sm mt-2">{{ errors.applicantName }}</p>
               </div>
 
-              <div class="form-group" style="display: none;">
+              <div class="form-group">
+                <label class="form-label">
+                  <span class="text-red-500">*</span> 所属部门
+                </label>
                 <select
                   v-model="form.department"
                   class="form-select"
+                  @change="validateField('department')"
                 >
-                  <option value="A区">A区</option>
-                  <option value="C区">C区</option>
-                  <option value="K区">K区</option>
+                  <option value="">请选择部门</option>
+                  <option value="研发部">研发部</option>
+                  <option value="市场部">市场部</option>
+                  <option value="财务部">财务部</option>
+                  <option value="人力资源部">人力资源部</option>
+                  <option value="行政部">行政部</option>
+                  <option value="生产部">生产部</option>
                 </select>
+                <p v-if="errors.department" class="text-red-500 text-sm mt-2">{{ errors.department }}</p>
               </div>
 
               <div class="form-group">
@@ -147,6 +156,22 @@
                 </select>
                 <p v-if="errors.projectId" class="text-red-500 text-sm mt-2">{{ errors.projectId }}</p>
               </div>
+
+              <div class="form-group">
+                <label class="form-label">
+                  <span class="text-red-500">*</span> 区域
+                </label>
+                <select
+                  v-model="form.area"
+                  class="form-select"
+                  @change="validateField('area')"
+                >
+                  <option value="">请选择区域</option>
+                  <option value="A">A区</option>
+                  <option value="CK">CK区</option>
+                </select>
+                <p v-if="errors.area" class="text-red-500 text-sm mt-2">{{ errors.area }}</p>
+              </div>
             </div>
 
             <div class="form-group mt-5">
@@ -193,8 +218,8 @@
                     class="w-5 h-5 text-primary-500"
                   />
                   <div class="flex-1">
-                    <div class="font-medium text-gray-800">内部机房维修</div>
-                    <div class="text-sm text-gray-500">设备送修至机房，工程师统一处理</div>
+                    <div class="font-medium text-gray-800">资讯内部维修</div>
+                    <div class="text-sm text-gray-500">设备送修至资讯维修区，工程师统一处理</div>
                   </div>
                   <Server class="w-6 h-6 text-gray-400" />
                 </label>
@@ -213,8 +238,8 @@
                     class="w-5 h-5 text-primary-500"
                   />
                   <div class="flex-1">
-                    <div class="font-medium text-gray-800">现场远程维修</div>
-                    <div class="text-sm text-gray-500">工程师远程协助或现场处理</div>
+                    <div class="font-medium text-gray-800">资讯委外维修</div>
+                    <div class="text-sm text-gray-500">资讯采购协助外送维修处理</div>
                   </div>
                   <Monitor class="w-6 h-6 text-gray-400" />
                 </label>
@@ -370,7 +395,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { 
-  Home, Loader2, CheckCircle, 
+  Home, Upload, Loader2, CheckCircle, 
   Server, Monitor, Phone, Mail, MessageCircle, Clock, AlertTriangle, User
 } from 'lucide-vue-next'
 import { workOrderApi } from '../api'
@@ -385,14 +410,13 @@ const goHome = () => {
 
 const form = reactive({
   applicantName: '',
-  department: 'A区',
-  location: '',
+  department: '',
   extension: '',
   emailPrefix: '',
-  webexId: '',
   assetNo: '',
   deviceType: '',
   projectId: '',
+  area: '',
   description: '',
   repairType: '' as 'internal' | 'remote' | '',
   notificationChannels: [] as ('extension' | 'email' | 'webex')[],
@@ -418,6 +442,9 @@ const validateField = (field: string) => {
     case 'applicantName':
       if (!form.applicantName.trim()) errors[field] = '请输入姓名'
       break
+    case 'department':
+      if (!form.department) errors[field] = '请选择所属部门'
+      break
     case 'extension':
       if (!form.extension.trim()) {
         errors[field] = '请输入内线分机'
@@ -438,6 +465,9 @@ const validateField = (field: string) => {
       break
     case 'projectId':
       if (!form.projectId) errors[field] = '请选择维修项目'
+      break
+    case 'area':
+      if (!form.area) errors[field] = '请选择区域'
       break
     case 'description':
       if (!form.description.trim()) {
@@ -463,7 +493,7 @@ const validateField = (field: string) => {
 const validateAll = (): boolean => {
   let isValid = true
   
-  const fields = ['applicantName', 'extension', 'email', 'assetNo', 'deviceType', 'projectId', 'description', 'repairType', 'notificationChannels', 'priority']
+  const fields = ['applicantName', 'department', 'extension', 'email', 'assetNo', 'deviceType', 'projectId', 'area', 'description', 'repairType', 'notificationChannels', 'priority']
   fields.forEach(field => {
     validateField(field)
     if (errors[field]) isValid = false
@@ -479,24 +509,19 @@ const handleSubmit = async () => {
   
   try {
     const email = form.emailPrefix.trim() ? `${form.emailPrefix}@foxlink.com` : ''
-    const webexId = form.emailPrefix.trim() || ''
-    const location = form.department
     const response = await workOrderApi.submit({
       applicantName: form.applicantName,
       department: form.department,
-      location: location,
       extension: form.extension,
       email: email,
-      webexId: webexId,
       assetNo: form.assetNo,
       deviceType: form.deviceType,
-      deviceLocation: '',
       projectId: form.projectId,
       description: form.description,
       repairType: form.repairType || 'internal',
       notificationChannels: form.notificationChannels,
       priority: form.priority || 'normal',
-      area: form.department
+      area: form.area
     })
     
     if (response.data.success) {
@@ -514,14 +539,13 @@ const handleSubmit = async () => {
 const resetForm = () => {
   showSuccess.value = false
   form.applicantName = ''
-  form.department = 'A区'
-  form.location = ''
+  form.department = ''
   form.extension = ''
   form.emailPrefix = ''
-  form.webexId = ''
   form.assetNo = ''
   form.deviceType = ''
   form.projectId = ''
+  form.area = ''
   form.description = ''
   form.repairType = ''
   form.notificationChannels = []
