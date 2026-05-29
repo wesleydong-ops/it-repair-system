@@ -5,6 +5,7 @@ export interface ServerConfig {
   httpsPort: number
   staticPath: string
   certPath: string
+  dataPath: string
   jwtSecret: string
   nodeEnv: string
 }
@@ -17,6 +18,7 @@ const getConfig = (): ServerConfig => {
     httpsPort: parseInt(process.env.HTTPS_PORT || (nodeEnv === 'production' ? '4433' : '8443'), 10),
     staticPath: process.env.STATIC_PATH || path.join(__dirname, '../dist'),
     certPath: process.env.CERT_PATH || path.join(__dirname, '../certs'),
+    dataPath: process.env.DATA_PATH || path.join(__dirname, '../data'),
     jwtSecret: process.env.JWT_SECRET || 'your-secret-key-here',
     nodeEnv
   }

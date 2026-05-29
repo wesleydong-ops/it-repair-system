@@ -1,6 +1,12 @@
 <template>
   <div class="min-h-screen bg-gradient-to-br from-primary-50 via-secondary-50 to-accent-50">
     <aside class="fixed left-0 top-0 h-screen w-64 bg-white shadow-lg z-50">
+      <div class="p-4 border-b border-gray-100">
+        <button @click="goHome" class="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition-colors w-full">
+          <Home class="w-4 h-4" />
+          返回首页
+        </button>
+      </div>
       <div class="p-6 border-b border-gray-100">
         <div class="flex items-center gap-3">
           <img src="/logo.png" alt="FoxLink" class="w-16 h-6 object-contain drop-shadow-md" />
@@ -13,7 +19,7 @@
       <nav class="p-4">
         <ul class="space-y-2">
           <li>
-            <a href="/admin" class="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300">
+            <a href="/admin" class="flex items-center gap-3 px-4 py-3 bg-darkblue text-white rounded-xl shadow-md">
               <LayoutDashboard class="w-5 h-5" />
               仪表盘
             </a>
@@ -308,10 +314,14 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { LayoutDashboard, Users, Settings, BarChart3, LogOut, Ticket, CheckCircle, Clock, ExternalLink, ClipboardList, Activity, TrendingUp, FileText, Eye } from 'lucide-vue-next'
+import { LayoutDashboard, Users, Settings, BarChart3, LogOut, Ticket, CheckCircle, Clock, ExternalLink, ClipboardList, Activity, TrendingUp, FileText, Eye, Home } from 'lucide-vue-next'
 import { authApi } from '../api'
 
 const router = useRouter()
+
+const goHome = () => {
+  window.location.href = '/'
+}
 
 const stats = ref({
   monthlyOrders: 156,

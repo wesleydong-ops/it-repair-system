@@ -10,19 +10,19 @@ import { config } from './config'
 
 const app = express()
 
-const SSL_OPTIONS = {
+const SSL_OPTIONS: { key: Buffer | undefined; cert: Buffer | undefined } = {
   key: fs.existsSync(path.join(config.certPath, 'server.key')) 
     ? fs.readFileSync(path.join(config.certPath, 'server.key')) 
-    : null,
+    : undefined,
   cert: fs.existsSync(path.join(config.certPath, 'server.crt')) 
     ? fs.readFileSync(path.join(config.certPath, 'server.crt')) 
-    : null
+    : undefined
 }
 
 app.use(cors())
 app.use(express.json())
 
-app.use('/api', (req, res, next) => {
+app.use('/api', (_req, _res, next) => {
   next()
 })
 
@@ -43,7 +43,10 @@ const authenticateToken = (req: express.Request, res: express.Response, next: ex
   })
 }
 
-const systemSettings = {
+const DATA_DIR = path.join(process.cwd(), 'data')
+const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json')
+
+const defaultSettings = {
   smtpHost: 'smtp.example.com',
   smtpPort: 25,
   smtpUsername: 'it-support@example.com',
@@ -54,6 +57,177 @@ const systemSettings = {
   extensionServer: 'pbx.example.com',
   extensionPort: 5060,
   systemUrl: 'https://localhost:8443'
+}
+
+const loadSettings = (): typeof defaultSettings => {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true })
+    }
+    if (fs.existsSync(SETTINGS_FILE)) {
+      const data = fs.readFileSync(SETTINGS_FILE, 'utf8')
+      const savedSettings = JSON.parse(data)
+      return { ...defaultSettings, ...savedSettings }
+    }
+    saveSettings(defaultSettings)
+    return defaultSettings
+  } catch (error) {
+    console.error('加载设置失败:', error)
+    return defaultSettings
+  }
+}
+
+const saveSettings = (settings: typeof defaultSettings): void => {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true })
+    }
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2))
+    console.log('设置已保存')
+  } catch (error) {
+    console.error('保存设置失败:', error)
+  }
+}
+
+const systemSettings = loadSettings()
+
+const WORKORDERS_FILE = path.join(DATA_DIR, 'workorders.json')
+const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json')
+
+const defaultProjects = [
+  { id: '1', name: '系统故障', category: '系统故障', description: '操作系统相关故障', sortOrder: 1, isActive: true },
+  { id: '2', name: '网络故障', category: '网络故障', description: '网络连接相关故障', sortOrder: 2, isActive: true },
+  { id: '3', name: '硬件故障', category: '硬件故障', description: '硬件设备相关故障', sortOrder: 3, isActive: true },
+  { id: '4', name: '软件问题', category: '软件问题', description: '应用软件相关问题', sortOrder: 4, isActive: true },
+  { id: '5', name: '设备升级', category: '设备升级', description: '设备升级与配置', sortOrder: 5, isActive: true },
+  { id: '6', name: '数据恢复', category: '其他', description: '数据恢复服务', sortOrder: 6, isActive: true },
+  { id: '7', name: '其他问题', category: '其他', description: '其他未分类问题', sortOrder: 7, isActive: true }
+]
+
+interface Project {
+  id: string
+  name: string
+  category: string
+  description: string
+  sortOrder: number
+  isActive: boolean
+}
+
+const loadProjects = (): Project[] => {
+  try {
+    if (fs.existsSync(PROJECTS_FILE)) {
+      const data = fs.readFileSync(PROJECTS_FILE, 'utf8')
+      return JSON.parse(data)
+    }
+    saveProjects(defaultProjects)
+    return defaultProjects
+  } catch (error) {
+    console.error('加载项目数据失败:', error)
+    return defaultProjects
+  }
+}
+
+const saveProjects = (projectList: Project[]): void => {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true })
+    }
+    fs.writeFileSync(PROJECTS_FILE, JSON.stringify(projectList, null, 2))
+    console.log('项目数据已保存')
+  } catch (error) {
+    console.error('保存项目数据失败:', error)
+  }
+}
+
+interface WorkOrder {
+  id: string
+  orderNo: string
+  applicantName: string
+  department: string
+  location: string
+  extension: string
+  email: string
+  webexId: string
+  assetNo: string
+  deviceType: string
+  deviceLocation: string
+  projectId: string
+  projectName: string
+  description: string
+  repairType: string
+  notificationChannels: string[]
+  priority: string
+  status: string
+  area: string
+  engineerId: string
+  engineerName: string
+  statusLog: string
+  createTime: string
+  updateTime: string
+}
+
+const loadWorkorders = (): WorkOrder[] => {
+  try {
+    if (fs.existsSync(WORKORDERS_FILE)) {
+      const data = fs.readFileSync(WORKORDERS_FILE, 'utf8')
+      return JSON.parse(data)
+    }
+    saveWorkorders(defaultWorkorders)
+    return defaultWorkorders
+  } catch (error) {
+    console.error('加载工单数据失败:', error)
+    return defaultWorkorders
+  }
+}
+
+const saveWorkorders = (orders: WorkOrder[]): void => {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true })
+    }
+    fs.writeFileSync(WORKORDERS_FILE, JSON.stringify(orders, null, 2))
+    console.log('工单数据已保存')
+  } catch (error) {
+    console.error('保存工单数据失败:', error)
+  }
+}
+
+const defaultWorkorders = [
+  { id: '1', orderNo: 'WO-20240115-001', applicantName: '张三', department: '研发部', location: 'A栋3楼301室', extension: '8001', email: 'zhangsan@company.com', webexId: 'zhangsan', assetNo: 'IT-2024-001', deviceType: '笔记本电脑', deviceLocation: 'A区-2楼', projectId: '1', projectName: '系统故障', description: '电脑无法开机', repairType: 'internal', notificationChannels: ['email', 'webex'], priority: 'urgent', status: 'pending', area: 'A', engineerId: '', engineerName: '', statusLog: '', createTime: '2024-01-15 14:30:00', updateTime: '2024-01-15 14:30:00' },
+  { id: '2', orderNo: 'WO-20240115-002', applicantName: '李四', department: '市场部', location: 'B栋2楼201室', extension: '8002', email: 'lisi@company.com', webexId: 'lisi', assetNo: 'IT-2024-002', deviceType: '台式电脑', deviceLocation: 'CK区-1楼', projectId: '2', projectName: '网络故障', description: '网络连接不稳定', repairType: 'remote', notificationChannels: ['extension'], priority: 'normal', status: 'accepted', area: 'CK', engineerId: '3', engineerName: '李工', statusLog: '', createTime: '2024-01-15 13:20:00', updateTime: '2024-01-15 13:30:00' },
+  { id: '3', orderNo: 'WO-20240115-003', applicantName: '王五', department: '财务部', location: 'A栋1楼101室', extension: '8003', email: 'wangwu@company.com', webexId: 'wangwu', assetNo: 'IT-2024-003', deviceType: '打印机', deviceLocation: 'A区-1楼', projectId: '3', projectName: '硬件故障', description: '打印机卡纸', repairType: 'internal', notificationChannels: ['email'], priority: 'normal', status: 'processing', area: 'A', engineerId: '2', engineerName: '陈工', statusLog: '', createTime: '2024-01-15 11:45:00', updateTime: '2024-01-15 12:00:00' }
+]
+
+const workorders = loadWorkorders()
+
+const assignEngineer = (area: string) => {
+  const currentUsers = loadUsers()
+  let targetEngineers: User[]
+  
+  if (area === 'A区') {
+    targetEngineers = currentUsers.filter(u => u.role === 'engineer' && u.area === 'A')
+  } else if (area === 'C区' || area === 'K区') {
+    targetEngineers = currentUsers.filter(u => u.role === 'engineer' && u.area === 'CK')
+  } else {
+    targetEngineers = currentUsers.filter(u => u.role === 'engineer')
+  }
+  
+  if (targetEngineers.length === 0) {
+    const allEngineers = currentUsers.filter(u => u.role === 'engineer')
+    if (allEngineers.length === 0) return null
+    targetEngineers = allEngineers
+  }
+  
+  const engineerOrderCount: Record<string, number> = {}
+  targetEngineers.forEach(eng => {
+    engineerOrderCount[eng.id] = workorders.filter(w => w.engineerId === eng.id && w.status !== 'completed').length
+  })
+  
+  const sortedEngineers = [...targetEngineers].sort((a, b) => 
+    (engineerOrderCount[a.id] || 0) - (engineerOrderCount[b.id] || 0)
+  )
+  
+  return sortedEngineers[0] || null
 }
 
 const createEmailTransporter = () => {
@@ -90,22 +264,65 @@ const sendEmail = async (to: string, subject: string, html: string): Promise<boo
   }
 }
 
-const users = [
-  { id: '1', username: 'admin', password: bcrypt.hashSync('admin123', 10), name: '管理员', role: 'admin', area: '', isActive: true, createTime: '2024-01-01 09:00:00' },
-  { id: '2', username: 'chen', password: bcrypt.hashSync('123456', 10), name: '陈工', role: 'engineer', area: 'A', isActive: true, createTime: '2024-01-02 10:00:00' },
-  { id: '3', username: 'li', password: bcrypt.hashSync('123456', 10), name: '李工', role: 'engineer', area: 'CK', isActive: true, createTime: '2024-01-03 11:00:00' }
+const USERS_FILE = path.join(DATA_DIR, 'users.json')
+
+interface User {
+  id: string
+  username: string
+  password: string
+  name: string
+  role: string
+  area: string
+  email: string
+  webexId: string
+  isActive: boolean
+  createTime: string
+}
+
+const defaultUsers: User[] = [
+  { id: '1', username: 'admin', password: bcrypt.hashSync('admin123', 10), name: '管理员', role: 'admin', area: '', email: 'admin@foxlink.com', webexId: 'admin', isActive: true, createTime: '2024-01-01 09:00:00' },
+  { id: '2', username: 'chen', password: bcrypt.hashSync('123456', 10), name: '陈工', role: 'engineer', area: 'A', email: 'chen@foxlink.com', webexId: 'chen', isActive: true, createTime: '2024-01-02 10:00:00' },
+  { id: '3', username: 'li', password: bcrypt.hashSync('123456', 10), name: '李工', role: 'engineer', area: 'CK', email: 'li@foxlink.com', webexId: 'li', isActive: true, createTime: '2024-01-03 11:00:00' },
+  { id: '4', username: 'wang', password: bcrypt.hashSync('123456', 10), name: '王工', role: 'engineer', area: 'A', email: 'wang@foxlink.com', webexId: 'wang', isActive: true, createTime: '2024-01-04 14:00:00' },
+  { id: '5', username: 'zhao', password: bcrypt.hashSync('123456', 10), name: '赵工', role: 'engineer', area: 'CK', email: 'zhao@foxlink.com', webexId: 'zhao', isActive: false, createTime: '2024-01-05 15:00:00' },
+  { id: '6', username: 'operator', password: bcrypt.hashSync('123456', 10), name: '运维员', role: 'operator', area: '', email: 'operator@foxlink.com', webexId: 'operator', isActive: true, createTime: '2024-01-06 09:00:00' }
 ]
 
-const workorders = [
-  { id: '1', orderNo: 'WO-20240115-001', applicantName: '张三', department: '研发部', location: 'A栋3楼301室', extension: '8001', email: 'zhangsan@company.com', webexId: 'zhangsan', assetNo: 'IT-2024-001', deviceType: '笔记本电脑', deviceLocation: 'A区-2楼', projectId: '1', projectName: '系统故障', description: '电脑无法开机', repairType: 'internal', notificationChannels: ['email', 'webex'], priority: 'urgent', status: 'pending', area: 'A', engineerId: '', engineerName: '', statusLog: '', createTime: '2024-01-15 14:30:00', updateTime: '2024-01-15 14:30:00' },
-  { id: '2', orderNo: 'WO-20240115-002', applicantName: '李四', department: '市场部', location: 'B栋2楼201室', extension: '8002', email: 'lisi@company.com', webexId: 'lisi', assetNo: 'IT-2024-002', deviceType: '台式电脑', deviceLocation: 'CK区-1楼', projectId: '2', projectName: '网络故障', description: '网络连接不稳定', repairType: 'remote', notificationChannels: ['extension'], priority: 'normal', status: 'accepted', area: 'CK', engineerId: '3', engineerName: '李工', statusLog: '', createTime: '2024-01-15 13:20:00', updateTime: '2024-01-15 13:30:00' },
-  { id: '3', orderNo: 'WO-20240115-003', applicantName: '王五', department: '财务部', location: 'A栋1楼101室', extension: '8003', email: 'wangwu@company.com', webexId: 'wangwu', assetNo: 'IT-2024-003', deviceType: '打印机', deviceLocation: 'A区-1楼', projectId: '3', projectName: '硬件故障', description: '打印机卡纸', repairType: 'internal', notificationChannels: ['email'], priority: 'normal', status: 'processing', area: 'A', engineerId: '2', engineerName: '陈工', statusLog: '', createTime: '2024-01-15 11:45:00', updateTime: '2024-01-15 12:00:00' }
-]
+const loadUsers = (): User[] => {
+  try {
+    if (fs.existsSync(USERS_FILE)) {
+      const data = fs.readFileSync(USERS_FILE, 'utf8')
+      return JSON.parse(data)
+    }
+    saveUsers(defaultUsers)
+    return defaultUsers
+  } catch (error) {
+    console.error('加载用户数据失败:', error)
+    return defaultUsers
+  }
+}
+
+const saveUsers = (userList: User[]): void => {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true })
+    }
+    fs.writeFileSync(USERS_FILE, JSON.stringify(userList, null, 2))
+    console.log('用户数据已保存')
+  } catch (error) {
+    console.error('保存用户数据失败:', error)
+  }
+}
+
+const users = loadUsers()
+
+const verificationCodes: Record<string, { code: string; expiresAt: number }> = {}
 
 app.post('/api/admin/login', async (req, res) => {
   const { username, password } = req.body
   
-  const user = users.find(u => u.username === username)
+  const freshUsers = loadUsers()
+  const user = freshUsers.find(u => u.username === username)
   
   if (!user || !bcrypt.compareSync(password, user.password)) {
     return res.status(401).json({ success: false, message: '用户名或密码错误' })
@@ -120,9 +337,97 @@ app.post('/api/admin/login', async (req, res) => {
   })
 })
 
+app.post('/api/admin/forgot-password', async (req, res) => {
+  const { email } = req.body
+  
+  const freshUsers = loadUsers()
+  const user = freshUsers.find(u => u.email === email)
+  
+  if (!user) {
+    return res.json({ success: false, message: '该邮箱未注册' })
+  }
+  
+  const code = Math.random().toString(36).substring(2, 8).toUpperCase()
+  const expiresAt = Date.now() + 300000
+  
+  verificationCodes[email] = { code, expiresAt }
+  
+  const emailHtml = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #1E3A5F; border-bottom: 2px solid #6BB3D9; padding-bottom: 10px;">IT报修系统 - 密码重置</h2>
+      <p>尊敬的 ${user.name} 先生/女士：</p>
+      <p>您正在进行密码重置操作，以下是您的验证码：</p>
+      <div style="background: #f8fafc; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px;">
+        <span style="font-size: 32px; font-weight: bold; color: #1E3A5F;">${code}</span>
+      </div>
+      <p>验证码有效期为5分钟，请及时使用。</p>
+      <p style="color: #999; font-size: 12px;">此邮件由系统自动发送，请勿回复。</p>
+    </div>
+  `
+  
+  await sendEmail(email, 'IT报修系统 - 密码重置验证码', emailHtml)
+  
+  res.json({ success: true, message: '验证码已发送至您的邮箱' })
+})
+
+app.post('/api/admin/verify-code', (req, res) => {
+  const { email, code } = req.body
+  
+  const stored = verificationCodes[email]
+  
+  if (!stored) {
+    return res.json({ success: false, message: '请先获取验证码' })
+  }
+  
+  if (Date.now() > stored.expiresAt) {
+    delete verificationCodes[email]
+    return res.json({ success: false, message: '验证码已过期，请重新获取' })
+  }
+  
+  if (stored.code !== code.toUpperCase()) {
+    return res.json({ success: false, message: '验证码错误' })
+  }
+  
+  res.json({ success: true, message: '验证码验证成功' })
+})
+
+app.post('/api/admin/reset-password', async (req, res) => {
+  const { email, code, newPassword } = req.body
+  
+  const stored = verificationCodes[email]
+  
+  if (!stored) {
+    return res.json({ success: false, message: '请先获取验证码' })
+  }
+  
+  if (Date.now() > stored.expiresAt) {
+    delete verificationCodes[email]
+    return res.json({ success: false, message: '验证码已过期，请重新获取' })
+  }
+  
+  if (stored.code !== code.toUpperCase()) {
+    return res.json({ success: false, message: '验证码错误' })
+  }
+  
+  const freshUsers = loadUsers()
+  const userIndex = freshUsers.findIndex(u => u.email === email)
+  
+  if (userIndex === -1) {
+    return res.json({ success: false, message: '用户不存在' })
+  }
+  
+  freshUsers[userIndex].password = bcrypt.hashSync(newPassword, 10)
+  saveUsers(freshUsers)
+  
+  delete verificationCodes[email]
+  
+  res.json({ success: true, message: '密码重置成功，请使用新密码登录' })
+})
+
 app.get('/api/admin/me', authenticateToken, (req, res) => {
   const userId = (req as any).user.id
-  const user = users.find(u => u.id === userId)
+  const freshUsers = loadUsers()
+  const user = freshUsers.find(u => u.id === userId)
   
   if (!user) {
     return res.status(404).json({ success: false, message: '用户不存在' })
@@ -134,15 +439,18 @@ app.get('/api/admin/me', authenticateToken, (req, res) => {
   })
 })
 
-app.get('/api/admin/users', authenticateToken, (req, res) => {
+app.get('/api/admin/users', authenticateToken, (_req, res) => {
+  const freshUsers = loadUsers()
   res.json({
     success: true,
-    data: users.map(u => ({
+    data: freshUsers.map(u => ({
       id: u.id,
       username: u.username,
       name: u.name,
       role: u.role,
       area: u.area,
+      email: u.email,
+      webexId: u.webexId,
       isActive: u.isActive,
       createTime: u.createTime
     }))
@@ -150,61 +458,77 @@ app.get('/api/admin/users', authenticateToken, (req, res) => {
 })
 
 app.post('/api/admin/users', authenticateToken, (req, res) => {
-  const { username, name, role, area } = req.body
+  const { username, name, role, area, email, webexId } = req.body
   
-  const newUser = {
+  if (!email && !webexId) {
+    return res.json({ success: false, message: '请至少填写邮箱或Webex ID中的一项' })
+  }
+  
+  const newUser: User = {
     id: Date.now().toString(),
     username,
     password: bcrypt.hashSync('123456', 10),
     name,
     role,
-    area,
+    area: area || '',
+    email: email || '',
+    webexId: webexId || '',
     isActive: true,
-    createTime: new Date().toISOString()
+    createTime: new Date().toLocaleString('zh-CN')
   }
   
   users.push(newUser)
+  saveUsers(users)
   
-  res.json({ success: true, data: newUser })
+  res.json({ success: true, data: { ...newUser, password: '' } })
 })
 
 app.put('/api/admin/users/:id', authenticateToken, (req, res) => {
   const { id } = req.params
-  const { name, role, area, isActive } = req.body
+  const { name, role, area, isActive, email, webexId } = req.body
   
-  const userIndex = users.findIndex(u => u.id === id)
+  const freshUsers = loadUsers()
+  const userIndex = freshUsers.findIndex(u => u.id === id)
   
   if (userIndex === -1) {
     return res.status(404).json({ success: false, message: '用户不存在' })
   }
   
-  users[userIndex] = {
-    ...users[userIndex],
+  freshUsers[userIndex] = {
+    ...freshUsers[userIndex],
     name,
     role,
     area,
-    isActive
+    isActive,
+    email: email || freshUsers[userIndex].email,
+    webexId: webexId || freshUsers[userIndex].webexId
   }
   
-  res.json({ success: true, data: users[userIndex] })
+  saveUsers(freshUsers)
+  
+  res.json({ success: true, data: { ...freshUsers[userIndex], password: '' } })
 })
 
 app.delete('/api/admin/users/:id', authenticateToken, (req, res) => {
   const { id } = req.params
   
-  const userIndex = users.findIndex(u => u.id === id)
+  const freshUsers = loadUsers()
+  const userIndex = freshUsers.findIndex(u => u.id === id)
   
   if (userIndex === -1) {
     return res.status(404).json({ success: false, message: '用户不存在' })
   }
   
-  users.splice(userIndex, 1)
+  freshUsers.splice(userIndex, 1)
+  saveUsers(freshUsers)
   
   res.json({ success: true, message: '删除成功' })
 })
 
 app.post('/api/workorder/submit', async (req, res) => {
   const { applicantName, department, location, extension, email, webexId, assetNo, deviceType, deviceLocation, projectId, description, repairType, notificationChannels, priority, area } = req.body
+
+  const assignedEngineer = assignEngineer(department)
   
   const newOrder = {
     id: Date.now().toString(),
@@ -224,16 +548,41 @@ app.post('/api/workorder/submit', async (req, res) => {
     repairType,
     notificationChannels,
     priority,
-    status: 'pending',
+    status: assignedEngineer ? 'assigned' : 'pending',
     area,
-    engineerId: '',
-    engineerName: '',
-    statusLog: '',
+    engineerId: assignedEngineer?.id || '',
+    engineerName: assignedEngineer?.name || '',
+    statusLog: assignedEngineer ? `工单已分配给工程师 ${assignedEngineer.name}` : '',
     createTime: new Date().toLocaleString('zh-CN'),
     updateTime: new Date().toLocaleString('zh-CN')
   }
   
   workorders.push(newOrder)
+  saveWorkorders(workorders)
+
+  if (assignedEngineer) {
+    if (assignedEngineer.email) {
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #1E3A5F; border-bottom: 2px solid #6BB3D9; padding-bottom: 10px;">IT报修系统 - 新工单分配</h2>
+          <p>尊敬的 ${assignedEngineer.name} 工程师：</p>
+          <p>您有新的报修工单需要处理，以下是工单详情：</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>工单号：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${newOrder.orderNo}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>申请人：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${applicantName}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>区域：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${department}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>设备类型：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${deviceType}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>紧急等级：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${priority === 'urgent' ? '紧急' : '普通'}</td></tr>
+            <tr><td style="padding: 8px;"><strong>故障描述：</strong></td><td style="padding: 8px;">${description}</td></tr>
+          </table>
+          <p>请及时处理工单，感谢您的支持！</p>
+          <p><a href="${systemSettings.systemUrl}/admin/workorders" style="color: #6BB3D9; text-decoration: none;">点击查看工单详情</a></p>
+          <p style="color: #999; font-size: 12px;">此邮件由系统自动发送，请勿回复。</p>
+        </div>
+      `
+      sendEmail(assignedEngineer.email, `新工单分配 - ${newOrder.orderNo}`, emailHtml)
+    }
+  }
   
   if (notificationChannels.includes('email') && email) {
     const emailHtml = `
@@ -295,7 +644,7 @@ app.get('/api/workorder/:id', (req, res) => {
   res.json({ success: true, data: order })
 })
 
-app.post('/api/workorder/:id/accept', authenticateToken, (req, res) => {
+app.post('/api/workorder/:id/accept', authenticateToken, async (req, res) => {
   const { id } = req.params
   const userId = (req as any).user.id
   
@@ -309,12 +658,33 @@ app.post('/api/workorder/:id/accept', authenticateToken, (req, res) => {
     return res.status(400).json({ success: false, message: '工单状态不允许接单' })
   }
   
-  const user = users.find(u => u.id === userId)
+  const freshUsers = loadUsers()
+  const user = freshUsers.find(u => u.id === userId)
   
   order.status = 'accepted'
   order.engineerId = userId
   order.engineerName = user?.name || ''
   order.updateTime = new Date().toLocaleString('zh-CN')
+  saveWorkorders(workorders)
+
+  if (user?.email) {
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #1E3A5F; border-bottom: 2px solid #6BB3D9; padding-bottom: 10px;">IT报修系统 - 新工单通知</h2>
+        <p>尊敬的 ${user.name} 先生/女士：</p>
+        <p>您有新的报修工单需要处理：</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>工单号：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${order.orderNo}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>设备类型：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${order.deviceType}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>申请人：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${order.applicantName}</td></tr>
+          <tr><td style="padding: 8px;"><strong>故障描述：</strong></td><td style="padding: 8px;">${order.description}</td></tr>
+        </table>
+        <p>请尽快处理工单。</p>
+        <p style="color: #999; font-size: 12px;">此邮件由系统自动发送，请勿回复。</p>
+      </div>
+    `
+    sendEmail(user.email, `新工单通知 - ${order.orderNo}`, emailHtml)
+  }
   
   res.json({ success: true, message: '接单成功' })
 })
@@ -334,6 +704,7 @@ app.post('/api/workorder/:id/start', authenticateToken, (req, res) => {
   
   order.status = 'processing'
   order.updateTime = new Date().toLocaleString('zh-CN')
+  saveWorkorders(workorders)
   
   res.json({ success: true, message: '开始处理' })
 })
@@ -353,6 +724,7 @@ app.post('/api/workorder/:id/complete', authenticateToken, (req, res) => {
   
   order.status = 'completed'
   order.updateTime = new Date().toLocaleString('zh-CN')
+  saveWorkorders(workorders)
   
   res.json({ success: true, message: '维修完成' })
 })
@@ -372,6 +744,7 @@ app.post('/api/workorder/:id/close', authenticateToken, (req, res) => {
   
   order.status = 'closed'
   order.updateTime = new Date().toLocaleString('zh-CN')
+  saveWorkorders(workorders)
   
   res.json({ success: true, message: '结案成功' })
 })
@@ -393,7 +766,7 @@ app.post('/api/workorder/:id/external', authenticateToken, (req, res) => {
   res.json({ success: true, message: '外修申请已提交', data: { reason, parts, estimatedCost, repairCompany } })
 })
 
-app.get('/api/admin/groups', authenticateToken, (req, res) => {
+app.get('/api/admin/groups', authenticateToken, (_req, res) => {
   const groups = [
     { id: '1', name: 'A区维修组', area: 'A', description: '负责A区所有办公区域、设备报修工单', isActive: true, members: users.filter(u => u.role === 'engineer' && u.area === 'A') },
     { id: '2', name: 'CK区维修组', area: 'CK', description: '负责CK区所有区域、设备报修工单', isActive: true, members: users.filter(u => u.role === 'engineer' && u.area === 'CK') }
@@ -408,49 +781,80 @@ app.post('/api/admin/groups', authenticateToken, (req, res) => {
   res.json({ success: true, message: '分组创建成功', data: { id: Date.now().toString(), name, area, description, isActive: true, members: [] } })
 })
 
-app.post('/api/admin/groups/:id/members', authenticateToken, (req, res) => {
-  const { id } = req.params
-  const { userId } = req.body
-  
+app.post('/api/admin/groups/:id/members', authenticateToken, (_req, res) => {
   res.json({ success: true, message: '成员添加成功' })
 })
 
-app.delete('/api/admin/groups/:id/members/:userId', authenticateToken, (req, res) => {
+app.delete('/api/admin/groups/:id/members/:userId', authenticateToken, (_req, res) => {
   res.json({ success: true, message: '成员移除成功' })
 })
 
-app.get('/api/admin/projects', authenticateToken, (req, res) => {
-  const projects = [
-    { id: '1', name: '系统故障', category: '系统故障', description: '操作系统相关故障', sortOrder: 1, isActive: true },
-    { id: '2', name: '网络故障', category: '网络故障', description: '网络连接相关故障', sortOrder: 2, isActive: true },
-    { id: '3', name: '硬件故障', category: '硬件故障', description: '硬件设备相关故障', sortOrder: 3, isActive: true },
-    { id: '4', name: '软件问题', category: '软件问题', description: '应用软件相关问题', sortOrder: 4, isActive: true },
-    { id: '5', name: '设备升级', category: '设备升级', description: '设备升级与配置', sortOrder: 5, isActive: true },
-    { id: '6', name: '数据恢复', category: '其他', description: '数据恢复服务', sortOrder: 6, isActive: true },
-    { id: '7', name: '其他问题', category: '其他', description: '其他未分类问题', sortOrder: 7, isActive: true }
-  ]
-  
+app.get('/api/admin/projects', authenticateToken, (_req, res) => {
+  const projects = loadProjects()
   res.json({ success: true, data: projects })
 })
 
 app.post('/api/admin/projects', authenticateToken, (req, res) => {
   const { name, category, description, sortOrder } = req.body
   
-  res.json({ success: true, message: '项目创建成功', data: { id: Date.now().toString(), name, category, description, sortOrder, isActive: true } })
+  const projects = loadProjects()
+  const newProject: Project = {
+    id: Date.now().toString(),
+    name,
+    category,
+    description,
+    sortOrder: sortOrder || projects.length + 1,
+    isActive: true
+  }
+  
+  projects.push(newProject)
+  saveProjects(projects)
+  
+  res.json({ success: true, message: '项目创建成功', data: newProject })
 })
 
 app.put('/api/admin/projects/:id', authenticateToken, (req, res) => {
   const { id } = req.params
   const { name, category, description, sortOrder, isActive } = req.body
   
-  res.json({ success: true, message: '项目更新成功', data: { id, name, category, description, sortOrder, isActive } })
+  const projects = loadProjects()
+  const projectIndex = projects.findIndex(p => p.id === id)
+  
+  if (projectIndex === -1) {
+    return res.status(404).json({ success: false, message: '项目不存在' })
+  }
+  
+  projects[projectIndex] = {
+    ...projects[projectIndex],
+    name,
+    category,
+    description,
+    sortOrder,
+    isActive
+  }
+  
+  saveProjects(projects)
+  
+  res.json({ success: true, message: '项目更新成功', data: projects[projectIndex] })
 })
 
 app.delete('/api/admin/projects/:id', authenticateToken, (req, res) => {
+  const { id } = req.params
+  
+  const projects = loadProjects()
+  const projectIndex = projects.findIndex(p => p.id === id)
+  
+  if (projectIndex === -1) {
+    return res.status(404).json({ success: false, message: '项目不存在' })
+  }
+  
+  projects.splice(projectIndex, 1)
+  saveProjects(projects)
+  
   res.json({ success: true, message: '项目删除成功' })
 })
 
-app.get('/api/admin/statistics', authenticateToken, (req, res) => {
+app.get('/api/admin/statistics', authenticateToken, (_req, res) => {
   const completedCount = workorders.filter(o => o.status === 'completed' || o.status === 'closed').length
   
   res.json({
@@ -472,7 +876,41 @@ app.get('/api/admin/statistics', authenticateToken, (req, res) => {
   })
 })
 
-app.get('/api/admin/settings', authenticateToken, (req, res) => {
+app.post('/api/admin/settings/test-webex', authenticateToken, async (_req, res) => {
+  try {
+    if (!systemSettings.webexToken || !systemSettings.webexRoomId) {
+      return res.json({ success: false, message: 'Webex配置不完整，请先配置Token和Room ID' })
+    }
+
+    const webexUrl = `https://webexapis.com/v1/messages`
+    const message = {
+      roomId: systemSettings.webexRoomId,
+      text: 'IT报修系统 - Webex测试消息\n\n这是一条测试消息，说明Webex通知功能配置正确！'
+    }
+
+    const response = await fetch(webexUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${systemSettings.webexToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(message)
+    })
+
+    if (response.ok) {
+      res.json({ success: true, message: 'Webex消息发送成功！' })
+    } else {
+      const errorData = await response.json().catch(() => ({ message: '未知错误' }))
+      const msg = (errorData as { message?: string })?.message || response.statusText
+      res.json({ success: false, message: `Webex消息发送失败: ${msg}` })
+    }
+  } catch (error) {
+    console.error('Webex消息发送错误:', error)
+    res.json({ success: false, message: `Webex消息发送失败: ${(error as Error).message}` })
+  }
+})
+
+app.get('/api/admin/settings', authenticateToken, (_req, res) => {
   res.json({
     success: true,
     data: {
@@ -503,6 +941,8 @@ app.put('/api/admin/settings', authenticateToken, (req, res) => {
   if (extensionServer !== undefined) systemSettings.extensionServer = extensionServer
   if (extensionPort !== undefined) systemSettings.extensionPort = extensionPort
   if (systemUrl !== undefined) systemSettings.systemUrl = systemUrl
+  
+  saveSettings(systemSettings)
   
   res.json({ success: true, message: '设置更新成功', data: systemSettings })
 })
@@ -537,7 +977,7 @@ app.post('/api/admin/settings/test-email', authenticateToken, async (req, res) =
 
 app.use(express.static(config.staticPath))
 
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   const indexPath = path.join(config.staticPath, 'index.html')
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath)
@@ -546,7 +986,7 @@ app.get('/', (req, res) => {
   }
 })
 
-app.get('*', (req, res) => {
+app.get('*', (_req, res) => {
   const indexPath = path.join(config.staticPath, 'index.html')
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath)

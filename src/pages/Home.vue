@@ -223,15 +223,15 @@
             <div class="flex flex-wrap gap-4">
               <div class="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
                 <Phone class="w-5 h-5" />
-                <span>分机: 1234</span>
+                <span>分机: 55999</span>
               </div>
               <div class="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
                 <Mail class="w-5 h-5" />
-                <span>it-support@company.com</span>
+                <span>ksmis@foxlink.com</span>
               </div>
               <div class="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
                 <MessageCircle class="w-5 h-5" />
-                <span>Webex: ITSupport</span>
+                <span>Webex: IT-Repair@webex.com</span>
               </div>
             </div>
           </div>

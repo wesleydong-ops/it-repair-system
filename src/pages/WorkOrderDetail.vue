@@ -2,6 +2,14 @@
   <div class="min-h-screen bg-gradient-to-br from-primary-50 via-secondary-50 to-accent-50 py-8">
     <div class="max-w-5xl mx-auto px-4">
       <header class="mb-8 fade-in">
+        <div class="flex items-center justify-between mb-4">
+          <button @click="goHome" class="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition-colors">
+            <Home class="w-5 h-5" />
+            返回首页
+          </button>
+          <div></div>
+          <div></div>
+        </div>
         <button @click="goBack" class="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition-colors mb-6">
           <ArrowLeft class="w-5 h-5" />
           返回工单列表
@@ -237,7 +245,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, User, Monitor, FileText, Wrench, History, CheckCircle, Play, Archive, ExternalLink } from 'lucide-vue-next'
+import { ArrowLeft, User, Monitor, FileText, Wrench, History, CheckCircle, Play, Archive, ExternalLink, Home } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -353,6 +361,10 @@ const getNotificationText = (channels: ('extension' | 'email' | 'webex')[]) => {
 
 const goBack = () => {
   router.push('/workorders')
+}
+
+const goHome = () => {
+  window.location.href = '/'
 }
 
 const handleAccept = () => {

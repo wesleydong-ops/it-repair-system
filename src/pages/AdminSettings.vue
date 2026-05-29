@@ -1,6 +1,12 @@
 <template>
   <div class="min-h-screen bg-gray-100">
     <aside class="fixed left-0 top-0 h-screen w-64 bg-white shadow-lg">
+      <div class="p-4 border-b">
+        <button @click="goHome" class="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition-colors w-full">
+          <Home class="w-4 h-4" />
+          返回首页
+        </button>
+      </div>
       <div class="p-6 border-b">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center">
@@ -42,7 +48,7 @@
             </a>
           </li>
           <li>
-            <a href="/admin/settings" class="flex items-center gap-3 px-4 py-3 bg-primary text-white rounded-lg">
+            <a href="/admin/settings" class="flex items-center gap-3 px-4 py-3 bg-darkblue text-white rounded-xl shadow-md">
               <Settings class="w-5 h-5" />
               系统设置
             </a>
@@ -234,11 +240,15 @@
 
 <script setup lang="ts">
 import { reactive, onMounted } from 'vue'
-import { Wrench, LayoutDashboard, Users, Settings, BarChart3, LogOut, Mail, MessageSquare, Phone, Globe, Bell, Send, Save } from 'lucide-vue-next'
+import { Wrench, LayoutDashboard, Users, Settings, BarChart3, LogOut, Mail, MessageSquare, Phone, Globe, Bell, Send, Save, Home } from 'lucide-vue-next'
 import { authApi, adminApi } from '../api'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+
+const goHome = () => {
+  window.location.href = '/'
+}
 
 const settings = reactive({
   smtpHost: 'smtp.example.com',
@@ -276,8 +286,20 @@ const testEmail = async () => {
   }
 }
 
-const testWebex = () => {
-  alert('Webex测试功能开发中')
+const testWebex = async () => {
+  try {
+    const response = await fetch('/api/admin/settings/test-webex', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    })
+    const result = await response.json()
+    alert(result.message)
+  } catch (error) {
+    alert('Webex测试失败：网络错误')
+  }
 }
 
 const saveSettings = async () => {

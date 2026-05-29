@@ -1,6 +1,12 @@
 <template>
   <div class="min-h-screen bg-gray-100">
     <aside class="fixed left-0 top-0 h-screen w-64 bg-white shadow-lg">
+      <div class="p-4 border-b">
+        <button @click="goHome" class="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition-colors w-full">
+          <Home class="w-4 h-4" />
+          返回首页
+        </button>
+      </div>
       <div class="p-6 border-b">
         <div class="flex items-center gap-3">
           <img src="/logo.png" alt="FoxLink" class="w-16 h-6 object-contain drop-shadow-md" />
@@ -16,7 +22,7 @@
             </a>
           </li>
           <li>
-            <a href="/admin/users" class="flex items-center gap-3 px-4 py-3 bg-primary text-white rounded-lg">
+            <a href="/admin/users" class="flex items-center gap-3 px-4 py-3 bg-darkblue text-white rounded-xl shadow-md">
               <Users class="w-5 h-5" />
               用户管理
             </a>
@@ -180,9 +186,17 @@
                 <option value="CK">CK区</option>
               </select>
             </div>
+            <div>
+              <label class="form-label">邮箱 <span class="text-red-500">*</span></label>
+              <input v-model="editUserModel.email" type="email" class="form-input" placeholder="用于接收工单通知和密码重置" />
+            </div>
+            <div>
+              <label class="form-label">Webex ID <span class="text-gray-400">(选填)</span></label>
+              <input v-model="editUserModel.webexId" type="text" class="form-input" placeholder="Webex消息通知" />
+            </div>
             <div v-if="!editUserModel.id">
-              <label class="form-label">密码</label>
-              <input v-model="editUserModel.password" type="password" class="form-input" />
+              <label class="form-label">初始密码</label>
+              <input v-model="editUserModel.password" type="password" class="form-input" placeholder="默认密码: 123456" />
             </div>
           </div>
           <div class="flex justify-end gap-3 mt-6">
@@ -197,11 +211,15 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
-import { LayoutDashboard, Users, Settings, BarChart3, LogOut, Plus, Search } from 'lucide-vue-next'
+import { LayoutDashboard, Users, Settings, BarChart3, LogOut, Plus, Search, Home } from 'lucide-vue-next'
 import { authApi } from '../api'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+
+const goHome = () => {
+  window.location.href = '/'
+}
 
 const filters = reactive({
   role: '',
@@ -218,7 +236,9 @@ const editUserModel = reactive({
   name: '',
   role: 'user',
   area: '',
-  password: ''
+  password: '',
+  email: '',
+  webexId: ''
 })
 
 const users = ref([
@@ -251,6 +271,8 @@ const editUser = (user: typeof users.value[0]) => {
   editUserModel.role = user.role
   editUserModel.area = user.area || ''
   editUserModel.password = ''
+  editUserModel.email = user.email || ''
+  editUserModel.webexId = user.webexId || ''
   showAddModal.value = true
 }
 
@@ -262,16 +284,103 @@ const closeModal = () => {
   editUserModel.role = 'user'
   editUserModel.area = ''
   editUserModel.password = ''
+  editUserModel.email = ''
+  editUserModel.webexId = ''
 }
 
-const saveUser = () => {
-  alert('保存成功')
-  closeModal()
+const loadUsers = async () => {
+  try {
+    const response = await fetch('/api/admin/users', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+    const result = await response.json()
+    if (result.success) {
+      users.value = result.data
+    }
+  } catch (error) {
+    console.error('加载用户列表失败:', error)
+  }
 }
 
-const toggleUserStatus = (user: typeof users.value[0]) => {
-  user.isActive = !user.isActive
-  alert(`${user.name}已${user.isActive ? '启用' : '禁用'}`)
+loadUsers()
+
+const saveUser = async () => {
+  try {
+    if (!editUserModel.username || !editUserModel.name) {
+      alert('请填写用户名和姓名')
+      return
+    }
+
+    if ((editUserModel.role === 'admin' || editUserModel.role === 'operator' || editUserModel.role === 'engineer') && 
+        !editUserModel.email && !editUserModel.webexId) {
+      alert('工程师及管理员必须填写邮箱或Webex ID至少一项，用于接收工单通知和密码重置')
+      return
+    }
+
+    const url = editUserModel.id ? `/api/admin/users/${editUserModel.id}` : '/api/admin/users'
+    const method = editUserModel.id ? 'PUT' : 'POST'
+
+    const bodyData: Record<string, any> = {
+      username: editUserModel.username,
+      name: editUserModel.name,
+      role: editUserModel.role,
+      area: editUserModel.area,
+      email: editUserModel.email,
+      webexId: editUserModel.webexId
+    }
+
+    if (editUserModel.id) {
+      bodyData.isActive = users.value.find(u => u.id === editUserModel.id)?.isActive ?? true
+    }
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(bodyData)
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      alert('保存成功')
+      closeModal()
+      loadUsers()
+    } else {
+      alert('保存失败：' + result.message)
+    }
+  } catch (error) {
+    alert('保存失败：网络错误')
+  }
+}
+
+const toggleUserStatus = async (user: typeof users.value[0]) => {
+  try {
+    const response = await fetch(`/api/admin/users/${user.id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        ...user,
+        isActive: !user.isActive
+      })
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      user.isActive = !user.isActive
+      alert(`${user.name}已${user.isActive ? '启用' : '禁用'}`)
+    } else {
+      alert('操作失败：' + result.message)
+    }
+  } catch (error) {
+    alert('操作失败：网络错误')
+  }
 }
 
 const handleLogout = () => {

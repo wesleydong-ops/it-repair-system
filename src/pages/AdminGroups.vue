@@ -1,6 +1,12 @@
 <template>
   <div class="min-h-screen bg-gray-100">
     <aside class="fixed left-0 top-0 h-screen w-64 bg-white shadow-lg">
+      <div class="p-4 border-b">
+        <button @click="goHome" class="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition-colors w-full">
+          <Home class="w-4 h-4" />
+          返回首页
+        </button>
+      </div>
       <div class="p-6 border-b">
         <div class="flex items-center gap-3">
           <img src="/logo.png" alt="FoxLink" class="w-16 h-6 object-contain drop-shadow-md" />
@@ -22,7 +28,7 @@
             </a>
           </li>
           <li>
-            <a href="/admin/groups" class="flex items-center gap-3 px-4 py-3 bg-primary text-white rounded-lg">
+            <a href="/admin/groups" class="flex items-center gap-3 px-4 py-3 bg-darkblue text-white rounded-xl shadow-md">
               <Users class="w-5 h-5" />
               工程师分组
             </a>
@@ -123,48 +129,75 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { LayoutDashboard, Users, Settings, BarChart3, LogOut, User, Plus, X } from 'lucide-vue-next'
+import { LayoutDashboard, Users, Settings, BarChart3, LogOut, User, Plus, X, Home } from 'lucide-vue-next'
 import { authApi } from '../api'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
-const groups = ref([
-  {
-    id: '1',
-    name: 'A区维修组',
-    area: 'A',
-    description: '负责A区所有办公区域、设备报修工单',
-    isActive: true,
-    members: [
-      { id: '1', username: 'chen', name: '陈工', role: 'engineer', area: 'A', isActive: true },
-      { id: '2', username: 'wang', name: '王工', role: 'engineer', area: 'A', isActive: true }
-    ]
-  },
-  {
-    id: '2',
-    name: 'CK区维修组',
-    area: 'CK',
-    description: '负责CK区所有区域、设备报修工单',
-    isActive: true,
-    members: [
-      { id: '3', username: 'li', name: '李工', role: 'engineer', area: 'CK', isActive: true },
-      { id: '4', username: 'zhao', name: '赵工', role: 'engineer', area: 'CK', isActive: false }
-    ]
-  }
-])
+const goHome = () => {
+  window.location.href = '/'
+}
+
+interface Engineer {
+  id: string
+  username: string
+  name: string
+  role: string
+  area: string
+  isActive: boolean
+}
+
+interface Group {
+  id: string
+  name: string
+  area: string
+  description: string
+  isActive: boolean
+  members: Engineer[]
+}
+
+const groups = ref<Group[]>([])
+const allEngineers = ref<Engineer[]>([])
 
 const showMemberModal = ref(false)
-const selectedGroup = ref<typeof groups.value[0] | null>(null)
+const selectedGroup = ref<Group | null>(null)
 const selectedEngineer = ref('')
 
-const allEngineers = ref([
-  { id: '1', username: 'chen', name: '陈工', role: 'engineer', area: 'A', isActive: true },
-  { id: '2', username: 'wang', name: '王工', role: 'engineer', area: 'A', isActive: true },
-  { id: '3', username: 'li', name: '李工', role: 'engineer', area: 'CK', isActive: true },
-  { id: '4', username: 'zhao', name: '赵工', role: 'engineer', area: 'CK', isActive: false },
-  { id: '5', username: 'sun', name: '孙工', role: 'engineer', area: 'A', isActive: true }
-])
+const loadGroups = async () => {
+  try {
+    const response = await fetch('/api/admin/groups', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+    const result = await response.json()
+    if (result.success) {
+      groups.value = result.data
+    }
+  } catch (error) {
+    console.error('加载分组列表失败:', error)
+  }
+}
+
+const loadEngineers = async () => {
+  try {
+    const response = await fetch('/api/admin/users', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+    const result = await response.json()
+    if (result.success) {
+      allEngineers.value = result.data.filter((u: Engineer) => u.role === 'engineer' && u.isActive)
+    }
+  } catch (error) {
+    console.error('加载工程师列表失败:', error)
+  }
+}
+
+loadGroups()
+loadEngineers()
 
 const availableEngineers = computed(() => {
   if (!selectedGroup.value) return []
@@ -172,7 +205,8 @@ const availableEngineers = computed(() => {
   return allEngineers.value.filter(e => !memberIds.includes(e.id))
 })
 
-const showAddMemberModal = (group: typeof groups.value[0]) => {
+const showAddMemberModal = async (group: Group) => {
+  await loadEngineers()
   selectedGroup.value = group
   selectedEngineer.value = ''
   showMemberModal.value = true
@@ -184,22 +218,56 @@ const closeMemberModal = () => {
   selectedEngineer.value = ''
 }
 
-const addMember = () => {
+const addMember = async () => {
   if (!selectedGroup.value || !selectedEngineer.value) return
   
   const engineer = allEngineers.value.find(e => e.id === selectedEngineer.value)
   if (engineer) {
-    selectedGroup.value.members.push(engineer)
-    alert(`已将${engineer.name}添加到${selectedGroup.value.name}`)
+    try {
+      const response = await fetch(`/api/admin/groups/${selectedGroup.value.id}/members`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId: selectedEngineer.value })
+      })
+
+      const result = await response.json()
+      if (result.success) {
+        selectedGroup.value.members.push(engineer)
+        alert(`已将${engineer.name}添加到${selectedGroup.value.name}`)
+      } else {
+        alert('添加失败：' + result.message)
+      }
+    } catch (error) {
+      alert('添加失败：网络错误')
+    }
   }
   closeMemberModal()
 }
 
-const removeMember = (groupId: string, memberId: string) => {
+const removeMember = async (groupId: string, memberId: string) => {
   const group = groups.value.find(g => g.id === groupId)
   if (group) {
-    group.members = group.members.filter(m => m.id !== memberId)
-    alert('已移除成员')
+    try {
+      const response = await fetch(`/api/admin/groups/${groupId}/members/${memberId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+
+      const result = await response.json()
+      if (result.success) {
+        group.members = group.members.filter(m => m.id !== memberId)
+        alert('已移除成员')
+      } else {
+        alert('移除失败：' + result.message)
+      }
+    } catch (error) {
+      alert('移除失败：网络错误')
+    }
   }
 }
 

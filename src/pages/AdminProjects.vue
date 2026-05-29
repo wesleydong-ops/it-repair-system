@@ -1,6 +1,12 @@
 <template>
   <div class="min-h-screen bg-gray-100">
     <aside class="fixed left-0 top-0 h-screen w-64 bg-white shadow-lg">
+      <div class="p-4 border-b">
+        <button @click="goHome" class="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition-colors w-full">
+          <Home class="w-4 h-4" />
+          返回首页
+        </button>
+      </div>
       <div class="p-6 border-b">
         <div class="flex items-center gap-3">
           <img src="/logo.png" alt="FoxLink" class="w-16 h-6 object-contain drop-shadow-md" />
@@ -28,7 +34,7 @@
             </a>
           </li>
           <li>
-            <a href="/admin/projects" class="flex items-center gap-3 px-4 py-3 bg-primary text-white rounded-lg">
+            <a href="/admin/projects" class="flex items-center gap-3 px-4 py-3 bg-darkblue text-white rounded-xl shadow-md">
               <Settings class="w-5 h-5" />
               维修项目
             </a>
@@ -146,11 +152,15 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
-import { LayoutDashboard, Users, Settings, BarChart3, LogOut, Plus } from 'lucide-vue-next'
+import { LayoutDashboard, Users, Settings, BarChart3, LogOut, Plus, Home } from 'lucide-vue-next'
 import { authApi } from '../api'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+
+const goHome = () => {
+  window.location.href = '/'
+}
 
 const showAddModal = ref(false)
 
@@ -163,15 +173,25 @@ const editProjectModel = reactive({
   isActive: true
 })
 
-const projects = ref([
-  { id: '1', name: '系统故障', category: '系统故障', description: '操作系统相关故障', sortOrder: 1, isActive: true },
-  { id: '2', name: '网络故障', category: '网络故障', description: '网络连接相关故障', sortOrder: 2, isActive: true },
-  { id: '3', name: '硬件故障', category: '硬件故障', description: '硬件设备相关故障', sortOrder: 3, isActive: true },
-  { id: '4', name: '软件问题', category: '软件问题', description: '应用软件相关问题', sortOrder: 4, isActive: true },
-  { id: '5', name: '设备升级', category: '设备升级', description: '设备升级与配置', sortOrder: 5, isActive: true },
-  { id: '6', name: '数据恢复', category: '其他', description: '数据恢复服务', sortOrder: 6, isActive: true },
-  { id: '7', name: '其他问题', category: '其他', description: '其他未分类问题', sortOrder: 7, isActive: true }
-])
+const projects = ref<typeof editProjectModel[]>([])
+
+const loadProjects = async () => {
+  try {
+    const response = await fetch('/api/admin/projects', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+    const result = await response.json()
+    if (result.success) {
+      projects.value = result.data
+    }
+  } catch (error) {
+    console.error('加载项目列表失败:', error)
+  }
+}
+
+loadProjects()
 
 const editProject = (project: typeof projects.value[0]) => {
   editProjectModel.id = project.id
@@ -193,14 +213,68 @@ const closeModal = () => {
   editProjectModel.isActive = true
 }
 
-const saveProject = () => {
-  alert('保存成功')
-  closeModal()
+const saveProject = async () => {
+  try {
+    if (!editProjectModel.name || !editProjectModel.category) {
+      alert('请填写项目名称和分类')
+      return
+    }
+
+    const url = editProjectModel.id ? `/api/admin/projects/${editProjectModel.id}` : '/api/admin/projects'
+    const method = editProjectModel.id ? 'PUT' : 'POST'
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: editProjectModel.name,
+        category: editProjectModel.category,
+        description: editProjectModel.description,
+        sortOrder: editProjectModel.sortOrder,
+        isActive: editProjectModel.isActive
+      })
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      alert('保存成功')
+      closeModal()
+      loadProjects()
+    } else {
+      alert('保存失败：' + result.message)
+    }
+  } catch (error) {
+    alert('保存失败：网络错误')
+  }
 }
 
-const toggleProjectStatus = (project: typeof projects.value[0]) => {
-  project.isActive = !project.isActive
-  alert(`${project.name}已${project.isActive ? '启用' : '停用'}`)
+const toggleProjectStatus = async (project: typeof projects.value[0]) => {
+  try {
+    const response = await fetch(`/api/admin/projects/${project.id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        ...project,
+        isActive: !project.isActive
+      })
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      project.isActive = !project.isActive
+      alert(`${project.name}已${project.isActive ? '启用' : '停用'}`)
+    } else {
+      alert('操作失败：' + result.message)
+    }
+  } catch (error) {
+    alert('操作失败：网络错误')
+  }
 }
 
 const handleLogout = () => {

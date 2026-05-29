@@ -2,6 +2,14 @@
   <div class="min-h-screen bg-gradient-to-br from-primary-50 via-secondary-50 to-accent-50 py-8">
     <div class="max-w-4xl mx-auto px-4">
       <header class="text-center mb-8 fade-in">
+        <div class="flex items-center justify-between mb-4">
+          <button @click="goHome" class="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition-colors">
+            <Home class="w-5 h-5" />
+            返回首页
+          </button>
+          <div></div>
+          <div></div>
+        </div>
         <div class="inline-flex items-center gap-4 mb-4">
           <img src="/logo.png" alt="FoxLink" class="w-24 h-9 object-contain drop-shadow-md" />
           <div>
@@ -13,33 +21,12 @@
       </header>
 
       <div class="card fade-in">
-        <div class="flex border-b border-gray-100 mb-8">
-          <button
-            v-for="(step, index) in steps"
-            :key="step.id"
-            @click="currentStep = index"
-            :class="[
-              'flex-1 flex flex-col items-center gap-2 px-4 py-4 font-medium transition-all duration-300',
-              currentStep === index
-                ? 'text-primary-600 border-b-2 border-primary-500'
-                : 'text-gray-500 hover:text-gray-700'
-            ]"
-          >
-            <span :class="[
-              'w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300',
-              currentStep === index 
-                ? 'bg-gradient-to-br from-primary-500 to-secondary-500 text-white shadow-md' 
-                : 'bg-gray-100 text-gray-600'
-            ]">
-              <CheckCircle v-if="index < currentStep" class="w-5 h-5" />
-              <span v-else>{{ index + 1 }}</span>
-            </span>
-            <span class="text-sm">{{ step.name }}</span>
-          </button>
-        </div>
-
-        <form @submit.prevent="handleSubmit" class="space-y-0">
-          <div v-show="currentStep === 0" class="space-y-5">
+        <form @submit.prevent="handleSubmit" class="space-y-6">
+          <div class="border-b border-gray-100 pb-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <User class="w-5 h-5 mr-2 text-primary-500" />
+              申请人信息
+            </h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div class="form-group">
                 <label class="form-label">
@@ -55,40 +42,15 @@
                 <p v-if="errors.applicantName" class="text-red-500 text-sm mt-2">{{ errors.applicantName }}</p>
               </div>
 
-              <div class="form-group">
-                <label class="form-label">
-                  <span class="text-red-500">*</span> 所属部门
-                </label>
+              <div class="form-group" style="display: none;">
                 <select
                   v-model="form.department"
                   class="form-select"
-                  @change="validateField('department')"
                 >
-                  <option value="">请选择部门</option>
-                  <option value="研发部">研发部</option>
-                  <option value="市场部">市场部</option>
-                  <option value="财务部">财务部</option>
-                  <option value="人力资源部">人力资源部</option>
-                  <option value="行政部">行政部</option>
-                  <option value="生产部">生产部</option>
+                  <option value="A区">A区</option>
+                  <option value="C区">C区</option>
+                  <option value="K区">K区</option>
                 </select>
-                <p v-if="errors.department" class="text-red-500 text-sm mt-2">{{ errors.department }}</p>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <div class="form-group">
-                <label class="form-label">
-                  <span class="text-red-500">*</span> 工位位置
-                </label>
-                <input
-                  v-model="form.location"
-                  type="text"
-                  class="form-input"
-                  placeholder="请输入工位位置，如：A栋3楼301室"
-                  @blur="validateField('location')"
-                />
-                <p v-if="errors.location" class="text-red-500 text-sm mt-2">{{ errors.location }}</p>
               </div>
 
               <div class="form-group">
@@ -104,40 +66,31 @@
                 />
                 <p v-if="errors.extension" class="text-red-500 text-sm mt-2">{{ errors.extension }}</p>
               </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <div class="form-group">
-                <label class="form-label">
-                  <span class="text-red-500">*</span> 企业邮箱
-                </label>
-                <input
-                  v-model="form.email"
-                  type="email"
-                  class="form-input"
-                  placeholder="请输入企业邮箱"
-                  @blur="validateField('email')"
-                />
-                <p v-if="errors.email" class="text-red-500 text-sm mt-2">{{ errors.email }}</p>
-              </div>
 
               <div class="form-group">
-                <label class="form-label">
-                  <span class="text-red-500">*</span> Webex账号
-                </label>
-                <input
-                  v-model="form.webexId"
-                  type="text"
-                  class="form-input"
-                  placeholder="请输入Webex账号"
-                  @blur="validateField('webexId')"
-                />
-                <p v-if="errors.webexId" class="text-red-500 text-sm mt-2">{{ errors.webexId }}</p>
+                <label class="form-label">Email&amp;Webex</label>
+                <div class="flex border border-gray-200 rounded-xl overflow-hidden">
+                  <input
+                    v-model="form.emailPrefix"
+                    type="text"
+                    class="flex-1 px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    placeholder="wesley_wen"
+                    @blur="validateField('email')"
+                    autofocus
+                  />
+                  <span class="flex-1 bg-gray-100 text-gray-500 px-4 py-3 flex items-center justify-start border-l border-gray-200 text-sm">@foxlink.com</span>
+                </div>
+                <p class="text-gray-400 text-sm mt-2">email帐号即为webex帐号，非必填项</p>
+                <p v-if="errors.email" class="text-red-500 text-sm">{{ errors.email }}</p>
               </div>
             </div>
           </div>
 
-          <div v-show="currentStep === 1" class="space-y-5">
+          <div class="border-b border-gray-100 pb-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <Monitor class="w-5 h-5 mr-2 text-primary-500" />
+              设备信息
+            </h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div class="form-group">
                 <label class="form-label">
@@ -173,28 +126,6 @@
                 </select>
                 <p v-if="errors.deviceType" class="text-red-500 text-sm mt-2">{{ errors.deviceType }}</p>
               </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <div class="form-group">
-                <label class="form-label">
-                  <span class="text-red-500">*</span> 设备具体位置
-                </label>
-                <select
-                  v-model="form.deviceLocation"
-                  class="form-select"
-                  @change="validateField('deviceLocation')"
-                >
-                  <option value="">请选择设备位置</option>
-                  <option value="A区-1楼">A区-1楼</option>
-                  <option value="A区-2楼">A区-2楼</option>
-                  <option value="A区-3楼">A区-3楼</option>
-                  <option value="CK区-1楼">CK区-1楼</option>
-                  <option value="CK区-2楼">CK区-2楼</option>
-                  <option value="CK区-3楼">CK区-3楼</option>
-                </select>
-                <p v-if="errors.deviceLocation" class="text-red-500 text-sm mt-2">{{ errors.deviceLocation }}</p>
-              </div>
 
               <div class="form-group">
                 <label class="form-label">
@@ -218,14 +149,14 @@
               </div>
             </div>
 
-            <div class="form-group">
+            <div class="form-group mt-5">
               <label class="form-label">
                 <span class="text-red-500">*</span> 故障详细描述
               </label>
               <textarea
                 v-model="form.description"
                 class="form-textarea"
-                rows="5"
+                rows="4"
                 placeholder="请详细描述故障现象，例如：电脑无法开机，开机后蓝屏，具体报错信息等..."
                 @blur="validateField('description')"
               ></textarea>
@@ -236,7 +167,12 @@
             </div>
           </div>
 
-          <div v-show="currentStep === 2" class="space-y-5">
+          <div class="border-b border-gray-100 pb-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <Server class="w-5 h-5 mr-2 text-primary-500" />
+              维修设置
+            </h3>
+
             <div class="form-group">
               <label class="form-label">
                 <span class="text-red-500">*</span> 维修场景类型
@@ -286,7 +222,7 @@
               <p v-if="errors.repairType" class="text-red-500 text-sm mt-2">{{ errors.repairType }}</p>
             </div>
 
-            <div class="form-group">
+            <div class="form-group mt-5">
               <label class="form-label">
                 <span class="text-red-500">*</span> 消息通知方式（至少选一项）
               </label>
@@ -346,7 +282,7 @@
               <p v-if="errors.notificationChannels" class="text-red-500 text-sm mt-2">{{ errors.notificationChannels }}</p>
             </div>
 
-            <div class="form-group">
+            <div class="form-group mt-5">
               <label class="form-label">
                 <span class="text-red-500">*</span> 紧急等级
               </label>
@@ -388,59 +324,27 @@
               </div>
               <p v-if="errors.priority" class="text-red-500 text-sm mt-2">{{ errors.priority }}</p>
             </div>
-
-            <div class="form-group">
-              <label class="form-label">附件（选填）</label>
-              <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-primary-300 transition-colors cursor-pointer">
-                <Upload class="w-14 h-14 text-gray-400 mx-auto mb-3" />
-                <p class="text-gray-600 font-medium">点击或拖拽上传故障照片/视频</p>
-                <p class="text-gray-400 text-sm mt-2">支持 JPG、PNG、MP4 格式，单个文件不超过10MB</p>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">其他备注（选填）</label>
-              <textarea
-                v-model="form.remark"
-                class="form-textarea"
-                rows="3"
-                placeholder="如有其他需要说明的情况，请填写..."
-              ></textarea>
-            </div>
           </div>
 
-          <div class="flex justify-between mt-10 pt-6 border-t border-gray-100">
+          <div class="form-group">
+            <label class="form-label">其他备注（选填）</label>
+            <textarea
+              v-model="form.remark"
+              class="form-textarea"
+              rows="3"
+              placeholder="如有其他需要说明的情况，请填写..."
+            ></textarea>
+          </div>
+
+          <div class="flex justify-center pt-4">
             <button
-              v-if="currentStep > 0"
-              type="button"
-              @click="currentStep--"
-              class="btn-outline-secondary"
+              type="submit"
+              :disabled="isSubmitting"
+              class="btn-primary w-full sm:w-auto px-12"
             >
-              <ArrowLeft class="w-4 h-4" />
-              上一步
+              <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
+              {{ isSubmitting ? '提交中...' : '提交工单' }}
             </button>
-            <div v-else></div>
-            
-            <template v-if="currentStep < steps.length - 1">
-              <button
-                type="button"
-                @click="nextStep"
-                class="btn-primary"
-              >
-                下一步
-                <ArrowRight class="w-4 h-4" />
-              </button>
-            </template>
-            <template v-else>
-              <button
-                type="submit"
-                :disabled="isSubmitting"
-                class="btn-primary"
-              >
-                <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
-                {{ isSubmitting ? '提交中...' : '提交工单' }}
-              </button>
-            </template>
           </div>
         </form>
       </div>
@@ -466,32 +370,28 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { 
-  ArrowLeft, ArrowRight, Upload, Loader2, CheckCircle, 
-  Server, Monitor, Phone, Mail, MessageCircle, Clock, AlertTriangle
+  Home, Loader2, CheckCircle, 
+  Server, Monitor, Phone, Mail, MessageCircle, Clock, AlertTriangle, User
 } from 'lucide-vue-next'
 import { workOrderApi } from '../api'
 
-const steps = [
-  { id: 'info', name: '申请人信息' },
-  { id: 'device', name: '设备信息' },
-  { id: 'repair', name: '维修信息' }
-]
-
-const currentStep = ref(0)
 const isSubmitting = ref(false)
 const showSuccess = ref(false)
 const submittedOrderNo = ref('')
 
+const goHome = () => {
+  window.location.href = '/'
+}
+
 const form = reactive({
   applicantName: '',
-  department: '',
+  department: 'A区',
   location: '',
   extension: '',
-  email: '',
+  emailPrefix: '',
   webexId: '',
   assetNo: '',
   deviceType: '',
-  deviceLocation: '',
   projectId: '',
   description: '',
   repairType: '' as 'internal' | 'remote' | '',
@@ -518,12 +418,6 @@ const validateField = (field: string) => {
     case 'applicantName':
       if (!form.applicantName.trim()) errors[field] = '请输入姓名'
       break
-    case 'department':
-      if (!form.department) errors[field] = '请选择所属部门'
-      break
-    case 'location':
-      if (!form.location.trim()) errors[field] = '请输入工位位置'
-      break
     case 'extension':
       if (!form.extension.trim()) {
         errors[field] = '请输入内线分机'
@@ -532,23 +426,15 @@ const validateField = (field: string) => {
       }
       break
     case 'email':
-      if (!form.email.trim()) {
-        errors[field] = '请输入企业邮箱'
-      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-        errors[field] = '邮箱格式不正确'
+      if (form.emailPrefix.trim() && !/^[a-zA-Z0-9._-]+$/.test(form.emailPrefix)) {
+        errors[field] = '英文名格式不正确（仅支持字母、数字、下划线和连字符）'
       }
-      break
-    case 'webexId':
-      if (!form.webexId.trim()) errors[field] = '请输入Webex账号'
       break
     case 'assetNo':
       if (!form.assetNo.trim()) errors[field] = '请输入设备资产编号'
       break
     case 'deviceType':
       if (!form.deviceType) errors[field] = '请选择设备类型'
-      break
-    case 'deviceLocation':
-      if (!form.deviceLocation) errors[field] = '请选择设备位置'
       break
     case 'projectId':
       if (!form.projectId) errors[field] = '请选择维修项目'
@@ -574,66 +460,43 @@ const validateField = (field: string) => {
   }
 }
 
-const validateCurrentStep = (): boolean => {
+const validateAll = (): boolean => {
   let isValid = true
   
-  if (currentStep.value === 0) {
-    const fields = ['applicantName', 'department', 'location', 'extension', 'email', 'webexId']
-    fields.forEach(field => {
-      validateField(field)
-      if (errors[field]) isValid = false
-    })
-  } else if (currentStep.value === 1) {
-    const fields = ['assetNo', 'deviceType', 'deviceLocation', 'projectId', 'description']
-    fields.forEach(field => {
-      validateField(field)
-      if (errors[field]) isValid = false
-    })
-  } else if (currentStep.value === 2) {
-    const fields = ['repairType', 'notificationChannels', 'priority']
-    fields.forEach(field => {
-      validateField(field)
-      if (errors[field]) isValid = false
-    })
-  }
+  const fields = ['applicantName', 'extension', 'email', 'assetNo', 'deviceType', 'projectId', 'description', 'repairType', 'notificationChannels', 'priority']
+  fields.forEach(field => {
+    validateField(field)
+    if (errors[field]) isValid = false
+  })
   
   return isValid
 }
 
-const nextStep = () => {
-  if (validateCurrentStep()) {
-    currentStep.value++
-  }
-}
-
-const getArea = (): string => {
-  if (form.deviceLocation.startsWith('A区')) return 'A'
-  if (form.deviceLocation.startsWith('CK区')) return 'CK'
-  return 'A'
-}
-
 const handleSubmit = async () => {
-  if (!validateCurrentStep()) return
+  if (!validateAll()) return
   
   isSubmitting.value = true
   
   try {
+    const email = form.emailPrefix.trim() ? `${form.emailPrefix}@foxlink.com` : ''
+    const webexId = form.emailPrefix.trim() || ''
+    const location = form.department
     const response = await workOrderApi.submit({
       applicantName: form.applicantName,
       department: form.department,
-      location: form.location,
+      location: location,
       extension: form.extension,
-      email: form.email,
-      webexId: form.webexId,
+      email: email,
+      webexId: webexId,
       assetNo: form.assetNo,
       deviceType: form.deviceType,
-      deviceLocation: form.deviceLocation,
+      deviceLocation: '',
       projectId: form.projectId,
       description: form.description,
       repairType: form.repairType || 'internal',
       notificationChannels: form.notificationChannels,
       priority: form.priority || 'normal',
-      area: getArea()
+      area: form.department
     })
     
     if (response.data.success) {
@@ -650,16 +513,14 @@ const handleSubmit = async () => {
 
 const resetForm = () => {
   showSuccess.value = false
-  currentStep.value = 0
   form.applicantName = ''
-  form.department = ''
+  form.department = 'A区'
   form.location = ''
   form.extension = ''
-  form.email = ''
+  form.emailPrefix = ''
   form.webexId = ''
   form.assetNo = ''
   form.deviceType = ''
-  form.deviceLocation = ''
   form.projectId = ''
   form.description = ''
   form.repairType = ''

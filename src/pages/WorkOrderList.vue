@@ -2,6 +2,14 @@
   <div class="min-h-screen bg-gradient-to-br from-primary-50 via-secondary-50 to-accent-50 py-8">
     <div class="max-w-7xl mx-auto px-4">
       <header class="mb-8 fade-in">
+        <div class="flex items-center justify-between mb-4">
+          <button @click="goHome" class="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition-colors">
+            <Home class="w-5 h-5" />
+            返回首页
+          </button>
+          <div></div>
+          <div></div>
+        </div>
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div class="flex items-center gap-4">
             <img src="/logo.png" alt="FoxLink" class="w-24 h-9 object-contain drop-shadow-md" />
@@ -179,10 +187,14 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
-import { ClipboardList, Plus, Search, Eye, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { ClipboardList, Plus, Search, Eye, ChevronLeft, ChevronRight, Home } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+
+const goHome = () => {
+  window.location.href = '/'
+}
 
 const filters = reactive({
   status: '',
