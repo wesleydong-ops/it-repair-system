@@ -87,14 +87,14 @@ body {
 .form-input::placeholder,
 .form-select::placeholder,
 .form-textarea::placeholder {
-  @apply text-gray-600;
+  @apply text-gray-400;
   opacity: 1;
 }
 
 .form-input::-webkit-input-placeholder,
 .form-select::-webkit-input-placeholder,
 .form-textarea::-webkit-input-placeholder {
-  @apply text-gray-600;
+  @apply text-gray-400;
 }
 
 .form-input:focus,

@@ -21,7 +21,7 @@
             <input
               v-model="form.username"
               type="text"
-              class="flex-1 px-3 py-3 bg-white focus:outline-none"
+              class="flex-1 px-3 py-3 bg-white focus:outline-none placeholder-gray-400"
               placeholder="请输入用户名"
             />
           </div>
@@ -39,7 +39,7 @@
             <input
               v-model="form.password"
               :type="showPassword ? 'text' : 'password'"
-              class="flex-1 px-3 py-3 bg-white focus:outline-none"
+              class="flex-1 px-3 py-3 bg-white focus:outline-none placeholder-gray-400"
               placeholder="请输入密码"
             />
             <button

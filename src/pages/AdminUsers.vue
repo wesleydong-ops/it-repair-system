@@ -84,6 +84,7 @@
               <option value="admin">超级管理员</option>
               <option value="operator">运维管理员</option>
               <option value="engineer">工程师</option>
+              <option value="purchase">资讯采购</option>
               <option value="user">普通用户</option>
             </select>
           </div>
@@ -147,8 +148,11 @@
                 <td class="px-4 py-3 text-gray-500">{{ formatDate(user.createTime) }}</td>
                 <td class="px-4 py-3">
                   <button @click="editUser(user)" class="text-primary hover:text-blue-600 mr-3">编辑</button>
-                  <button @click="toggleUserStatus(user)" class="text-gray-600 hover:text-red-500">
+                  <button @click="toggleUserStatus(user)" class="text-gray-600 hover:text-red-500 mr-3">
                     {{ user.isActive ? '禁用' : '启用' }}
+                  </button>
+                  <button v-if="currentUser?.role === 'admin'" @click="deleteUser(user)" class="text-red-600 hover:text-red-800">
+                    删除
                   </button>
                 </td>
               </tr>
@@ -175,6 +179,7 @@
                 <option value="admin">超级管理员</option>
                 <option value="operator">运维管理员</option>
                 <option value="engineer">工程师</option>
+                <option value="purchase">资讯采购</option>
                 <option value="user">普通用户</option>
               </select>
             </div>
@@ -215,7 +220,21 @@ import { LayoutDashboard, Users, Settings, BarChart3, LogOut, Plus, Search, Home
 import { authApi } from '../api'
 import { useRouter } from 'vue-router'
 
+interface User {
+  id: string
+  username: string
+  name: string
+  role: string
+  area: string
+  email?: string
+  webexId?: string
+  isActive: boolean
+  createTime: string
+}
+
 const router = useRouter()
+
+const currentUser = ref<{ id: string; username: string; name: string; role: string } | null>(null)
 
 const goHome = () => {
   window.location.href = '/'
@@ -241,20 +260,14 @@ const editUserModel = reactive({
   webexId: ''
 })
 
-const users = ref([
-  { id: '1', username: 'admin', name: '管理员', role: 'admin', area: '', isActive: true, createTime: '2024-01-01 09:00:00' },
-  { id: '2', username: 'chen', name: '陈工', role: 'engineer', area: 'A', isActive: true, createTime: '2024-01-02 10:00:00' },
-  { id: '3', username: 'li', name: '李工', role: 'engineer', area: 'CK', isActive: true, createTime: '2024-01-03 11:00:00' },
-  { id: '4', username: 'wang', name: '王工', role: 'engineer', area: 'A', isActive: true, createTime: '2024-01-04 14:00:00' },
-  { id: '5', username: 'zhao', name: '赵工', role: 'engineer', area: 'CK', isActive: false, createTime: '2024-01-05 15:00:00' },
-  { id: '6', username: 'operator', name: '运维员', role: 'operator', area: '', isActive: true, createTime: '2024-01-06 09:00:00' }
-])
+const users = ref<User[]>([])
 
 const getRoleText = (role: string) => {
   const texts: Record<string, string> = {
     admin: '超级管理员',
     operator: '运维管理员',
     engineer: '工程师',
+    purchase: '资讯采购',
     user: '普通用户'
   }
   return texts[role] || role
@@ -264,7 +277,7 @@ const formatDate = (dateStr: string) => {
   return dateStr.split(' ')[0]
 }
 
-const editUser = (user: typeof users.value[0]) => {
+const editUser = (user: User) => {
   editUserModel.id = user.id
   editUserModel.username = user.username
   editUserModel.name = user.name
@@ -304,7 +317,24 @@ const loadUsers = async () => {
   }
 }
 
+const loadCurrentUser = async () => {
+  try {
+    const response = await fetch('/api/admin/me', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+    const result = await response.json()
+    if (result.success) {
+      currentUser.value = result.user
+    }
+  } catch (error) {
+    console.error('加载当前用户信息失败:', error)
+  }
+}
+
 loadUsers()
+loadCurrentUser()
 
 const saveUser = async () => {
   try {
@@ -357,7 +387,7 @@ const saveUser = async () => {
   }
 }
 
-const toggleUserStatus = async (user: typeof users.value[0]) => {
+const toggleUserStatus = async (user: User) => {
   try {
     const response = await fetch(`/api/admin/users/${user.id}`, {
       method: 'PUT',
@@ -366,8 +396,12 @@ const toggleUserStatus = async (user: typeof users.value[0]) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        ...user,
-        isActive: !user.isActive
+        name: user.name,
+        role: user.role,
+        area: user.area,
+        isActive: !user.isActive,
+        email: user.email || '',
+        webexId: user.webexId || ''
       })
     })
 
@@ -380,6 +414,31 @@ const toggleUserStatus = async (user: typeof users.value[0]) => {
     }
   } catch (error) {
     alert('操作失败：网络错误')
+  }
+}
+
+const deleteUser = async (user: User) => {
+  if (!confirm(`确定要删除用户"${user.name}"吗？此操作不可撤销。`)) {
+    return
+  }
+
+  try {
+    const response = await fetch(`/api/admin/users/${user.id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      alert('用户已删除')
+      loadUsers()
+    } else {
+      alert('删除失败：' + result.message)
+    }
+  } catch (error) {
+    alert('删除失败：网络错误')
   }
 }
 

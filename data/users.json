@@ -130,5 +130,17 @@
     "webexId": "candy_zhu@foxlink.com",
     "isActive": true,
     "createTime": "2026/5/29 13:45:14"
+  },
+  {
+    "id": "1780119878883",
+    "username": "kaifeng_zhu",
+    "password": "$2a$10$3bdy.88MO3EFPLwg1uajX.mtmaYCjVmts0rBweNTCrJM38R3TrckO",
+    "name": "朱恺峰",
+    "role": "engineer",
+    "area": "A",
+    "email": "kaifeng_zhu@foxlink.com",
+    "webexId": "kaifeng_zhu@foxlink.com",
+    "isActive": true,
+    "createTime": "2026/5/30 13:44:38"
   }
 ]

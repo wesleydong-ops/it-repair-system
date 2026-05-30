@@ -43,23 +43,14 @@
               </div>
 
               <div class="form-group">
-                <label class="form-label">
-                  <span class="text-red-500">*</span> 所属部门
-                </label>
-                <select
+                <label class="form-label">所属部门</label>
+                <input
                   v-model="form.department"
-                  class="form-select"
-                  @change="validateField('department')"
-                >
-                  <option value="">请选择部门</option>
-                  <option value="研发部">研发部</option>
-                  <option value="市场部">市场部</option>
-                  <option value="财务部">财务部</option>
-                  <option value="人力资源部">人力资源部</option>
-                  <option value="行政部">行政部</option>
-                  <option value="生产部">生产部</option>
-                </select>
-                <p v-if="errors.department" class="text-red-500 text-sm mt-2">{{ errors.department }}</p>
+                  type="text"
+                  class="form-input"
+                  placeholder="请输入所属部门（选填）"
+                />
+                <p class="text-gray-400 text-sm mt-2">非必填项，可不填写</p>
               </div>
 
               <div class="form-group">
@@ -82,7 +73,7 @@
                   <input
                     v-model="form.emailPrefix"
                     type="text"
-                    class="flex-1 px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    class="flex-1 px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/30 placeholder-gray-400"
                     placeholder="wesley_wen"
                     @blur="validateField('email')"
                     autofocus
@@ -168,7 +159,8 @@
                 >
                   <option value="">请选择区域</option>
                   <option value="A">A区</option>
-                  <option value="CK">CK区</option>
+                  <option value="C">C区</option>
+                  <option value="K">K区</option>
                 </select>
                 <p v-if="errors.area" class="text-red-500 text-sm mt-2">{{ errors.area }}</p>
               </div>
@@ -395,7 +387,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { 
-  Home, Upload, Loader2, CheckCircle, 
+  Home, Loader2, CheckCircle, 
   Server, Monitor, Phone, Mail, MessageCircle, Clock, AlertTriangle, User
 } from 'lucide-vue-next'
 import { workOrderApi } from '../api'
@@ -421,7 +413,10 @@ const form = reactive({
   repairType: '' as 'internal' | 'remote' | '',
   notificationChannels: [] as ('extension' | 'email' | 'webex')[],
   priority: '' as 'normal' | 'urgent' | '',
-  remark: ''
+  remark: '',
+  location: '',
+  webexId: '',
+  deviceLocation: ''
 })
 
 const errors = reactive<Record<string, string>>({})
@@ -443,7 +438,6 @@ const validateField = (field: string) => {
       if (!form.applicantName.trim()) errors[field] = '请输入姓名'
       break
     case 'department':
-      if (!form.department) errors[field] = '请选择所属部门'
       break
     case 'extension':
       if (!form.extension.trim()) {
@@ -493,7 +487,7 @@ const validateField = (field: string) => {
 const validateAll = (): boolean => {
   let isValid = true
   
-  const fields = ['applicantName', 'department', 'extension', 'email', 'assetNo', 'deviceType', 'projectId', 'area', 'description', 'repairType', 'notificationChannels', 'priority']
+  const fields = ['applicantName', 'extension', 'email', 'assetNo', 'deviceType', 'projectId', 'area', 'description', 'repairType', 'notificationChannels', 'priority']
   fields.forEach(field => {
     validateField(field)
     if (errors[field]) isValid = false
@@ -521,7 +515,10 @@ const handleSubmit = async () => {
       repairType: form.repairType || 'internal',
       notificationChannels: form.notificationChannels,
       priority: form.priority || 'normal',
-      area: form.area
+      area: form.area,
+      location: '',
+      webexId: '',
+      deviceLocation: ''
     })
     
     if (response.data.success) {
