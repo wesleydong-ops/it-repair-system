@@ -63,7 +63,7 @@
       </div>
     </aside>
 
-    <main class="ml-64 p-8">
+    <main class="ml-64 p-8" @input="saveDraft">
       <header class="mb-8">
         <h1 class="text-2xl font-bold text-gray-800">系统设置</h1>
         <p class="text-gray-600 mt-2">配置系统参数和接口设置</p>
@@ -270,6 +270,38 @@ const settings = reactive({
   }
 })
 
+const SETTINGS_CACHE_KEY = 'admin_settings_draft'
+
+const saveDraft = () => {
+  try {
+    sessionStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(settings))
+  } catch (error) {
+    console.error('保存草稿失败')
+  }
+}
+
+const restoreDraft = (): boolean => {
+  try {
+    const cached = sessionStorage.getItem(SETTINGS_CACHE_KEY)
+    if (cached) {
+      const draft = JSON.parse(cached)
+      Object.assign(settings, draft)
+      return true
+    }
+  } catch (error) {
+    console.error('恢复草稿失败')
+  }
+  return false
+}
+
+const clearDraft = () => {
+  try {
+    sessionStorage.removeItem(SETTINGS_CACHE_KEY)
+  } catch (error) {
+    console.error('清除草稿失败')
+  }
+}
+
 const testEmail = async () => {
   const testEmailAddress = prompt('请输入测试邮箱地址：')
   if (!testEmailAddress) return
@@ -307,6 +339,7 @@ const saveSettings = async () => {
     const response = await adminApi.updateSettings(settings)
     if (response.data.success) {
       alert('设置保存成功')
+      clearDraft()
     } else {
       alert('设置保存失败：' + response.data.message)
     }
@@ -317,19 +350,21 @@ const saveSettings = async () => {
 
 const loadSettings = async () => {
   try {
-    const response = await adminApi.getSettings()
-    if (response.data.success) {
-      const data = response.data.data
-      settings.smtpHost = data.smtpHost || settings.smtpHost
-      settings.smtpPort = data.smtpPort || settings.smtpPort
-      settings.smtpUsername = data.smtpUsername || settings.smtpUsername
-      settings.smtpPassword = data.smtpPassword || settings.smtpPassword
-      settings.smtpSecure = data.smtpSecure || settings.smtpSecure
-      settings.webexToken = data.webexToken || settings.webexToken
-      settings.webexRoomId = data.webexRoomId || settings.webexRoomId
-      settings.extensionServer = data.extensionServer || settings.extensionServer
-      settings.extensionPort = data.extensionPort || settings.extensionPort
-      settings.systemUrl = data.systemUrl || settings.systemUrl
+    if (!restoreDraft()) {
+      const response = await adminApi.getSettings()
+      if (response.data.success) {
+        const data = response.data.data
+        settings.smtpHost = data.smtpHost || settings.smtpHost
+        settings.smtpPort = data.smtpPort || settings.smtpPort
+        settings.smtpUsername = data.smtpUsername || settings.smtpUsername
+        settings.smtpPassword = data.smtpPassword || settings.smtpPassword
+        settings.smtpSecure = data.smtpSecure || settings.smtpSecure
+        settings.webexToken = data.webexToken || settings.webexToken
+        settings.webexRoomId = data.webexRoomId || settings.webexRoomId
+        settings.extensionServer = data.extensionServer || settings.extensionServer
+        settings.extensionPort = data.extensionPort || settings.extensionPort
+        settings.systemUrl = data.systemUrl || settings.systemUrl
+      }
     }
   } catch (error) {
     console.log('加载设置失败')

@@ -112,7 +112,7 @@
       </div>
 
       <div v-if="showAddModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div class="card max-w-md mx-4 fade-in">
+        <div class="card max-w-md mx-4 fade-in" @input="saveDraft">
           <h3 class="text-xl font-bold text-gray-800 mb-4">{{ editProjectModel.id ? '编辑项目' : '添加项目' }}</h3>
           <div class="space-y-4">
             <div>
@@ -128,6 +128,10 @@
                 <option value="硬件故障">硬件故障</option>
                 <option value="软件问题">软件问题</option>
                 <option value="设备升级">设备升级</option>
+                <option value="信息安全">信息安全</option>
+                <option value="语音通讯">语音通讯</option>
+                <option value="资料恢复">资料恢复</option>
+                <option value="更新升级">更新升级</option>
                 <option value="其他">其他</option>
               </select>
             </div>
@@ -164,6 +168,8 @@ const goHome = () => {
 
 const showAddModal = ref(false)
 
+const PROJECT_CACHE_KEY = 'admin_project_draft'
+
 const editProjectModel = reactive({
   id: '',
   name: '',
@@ -172,6 +178,38 @@ const editProjectModel = reactive({
   sortOrder: 0,
   isActive: true
 })
+
+const saveDraft = () => {
+  try {
+    if (editProjectModel.id || editProjectModel.name) {
+      sessionStorage.setItem(PROJECT_CACHE_KEY, JSON.stringify(editProjectModel))
+    }
+  } catch (error) {
+    console.error('保存草稿失败')
+  }
+}
+
+const restoreDraft = (): boolean => {
+  try {
+    const cached = sessionStorage.getItem(PROJECT_CACHE_KEY)
+    if (cached) {
+      const draft = JSON.parse(cached)
+      Object.assign(editProjectModel, draft)
+      return true
+    }
+  } catch (error) {
+    console.error('恢复草稿失败')
+  }
+  return false
+}
+
+const clearDraft = () => {
+  try {
+    sessionStorage.removeItem(PROJECT_CACHE_KEY)
+  } catch (error) {
+    console.error('清除草稿失败')
+  }
+}
 
 const projects = ref<typeof editProjectModel[]>([])
 
@@ -194,12 +232,25 @@ const loadProjects = async () => {
 loadProjects()
 
 const editProject = (project: typeof projects.value[0]) => {
-  editProjectModel.id = project.id
-  editProjectModel.name = project.name
-  editProjectModel.category = project.category
-  editProjectModel.description = project.description
-  editProjectModel.sortOrder = project.sortOrder
-  editProjectModel.isActive = project.isActive
+  const hasDraft = restoreDraft()
+  if (hasDraft) {
+    if (!confirm('检测到未保存的编辑内容,是否恢复?')) {
+      clearDraft()
+      editProjectModel.id = project.id
+      editProjectModel.name = project.name
+      editProjectModel.category = project.category
+      editProjectModel.description = project.description
+      editProjectModel.sortOrder = project.sortOrder
+      editProjectModel.isActive = project.isActive
+    }
+  } else {
+    editProjectModel.id = project.id
+    editProjectModel.name = project.name
+    editProjectModel.category = project.category
+    editProjectModel.description = project.description
+    editProjectModel.sortOrder = project.sortOrder
+    editProjectModel.isActive = project.isActive
+  }
   showAddModal.value = true
 }
 
@@ -211,6 +262,7 @@ const closeModal = () => {
   editProjectModel.description = ''
   editProjectModel.sortOrder = 0
   editProjectModel.isActive = true
+  clearDraft()
 }
 
 const saveProject = async () => {
@@ -243,6 +295,7 @@ const saveProject = async () => {
       alert('保存成功')
       closeModal()
       loadProjects()
+      clearDraft()
     } else {
       alert('保存失败：' + result.message)
     }

@@ -101,7 +101,7 @@
           <p class="text-gray-600 mb-4">请设置新密码</p>
           <div>
             <label class="form-label">新密码</label>
-            <input v-model="forgotForm.newPassword" type="password" class="form-input" placeholder="请输入新密码" />
+            <input v-model="forgotForm.newPassword" type="password" class="form-input" placeholder="至少6位，包含大小写字母和数字" />
           </div>
           <div>
             <label class="form-label">确认密码</label>
@@ -208,6 +208,10 @@ const resetPassword = async () => {
     return
   }
   
+  if (!validatePassword(forgotForm.newPassword)) {
+    return
+  }
+  
   try {
     const response = await fetch('/api/admin/reset-password', {
       method: 'POST',
@@ -228,6 +232,30 @@ const resetPassword = async () => {
   } catch (error) {
     alert('重置失败：网络错误')
   }
+}
+
+const validatePassword = (password: string): boolean => {
+  if (password.length < 6) {
+    alert('密码长度至少为6位')
+    return false
+  }
+  
+  if (!/[A-Z]/.test(password)) {
+    alert('密码必须包含至少一个大写字母')
+    return false
+  }
+  
+  if (!/[a-z]/.test(password)) {
+    alert('密码必须包含至少一个小写字母')
+    return false
+  }
+  
+  if (!/[0-9]/.test(password)) {
+    alert('密码必须包含至少一个数字')
+    return false
+  }
+  
+  return true
 }
 
 const handleLogin = async () => {

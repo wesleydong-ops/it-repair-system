@@ -100,8 +100,11 @@ const defaultProjects = [
   { id: '3', name: '硬件故障', category: '硬件故障', description: '硬件设备相关故障', sortOrder: 3, isActive: true },
   { id: '4', name: '软件问题', category: '软件问题', description: '应用软件相关问题', sortOrder: 4, isActive: true },
   { id: '5', name: '设备升级', category: '设备升级', description: '设备升级与配置', sortOrder: 5, isActive: true },
-  { id: '6', name: '数据恢复', category: '其他', description: '数据恢复服务', sortOrder: 6, isActive: true },
-  { id: '7', name: '其他问题', category: '其他', description: '其他未分类问题', sortOrder: 7, isActive: true }
+  { id: '6', name: '信息安全', category: '信息安全', description: '信息安全相关问题', sortOrder: 6, isActive: true },
+  { id: '7', name: '语音通讯', category: '语音通讯', description: '语音通讯相关问题', sortOrder: 7, isActive: true },
+  { id: '8', name: '资料恢复', category: '资料恢复', description: '资料恢复服务', sortOrder: 8, isActive: true },
+  { id: '9', name: '更新升级', category: '更新升级', description: '系统更新与升级', sortOrder: 9, isActive: true },
+  { id: '10', name: '其他问题', category: '其他', description: '其他未分类问题', sortOrder: 10, isActive: true }
 ]
 
 interface Project {
@@ -288,6 +291,22 @@ const users = loadUsers()
 
 const verificationCodes: Record<string, { code: string; expiresAt: number }> = {}
 
+const validatePassword = (password: string): boolean => {
+  if (password.length < 6) {
+    return false
+  }
+  if (!/[A-Z]/.test(password)) {
+    return false
+  }
+  if (!/[a-z]/.test(password)) {
+    return false
+  }
+  if (!/[0-9]/.test(password)) {
+    return false
+  }
+  return true
+}
+
 app.post('/api/admin/login', async (req, res) => {
   const { username, password } = req.body
   
@@ -379,6 +398,10 @@ app.post('/api/admin/reset-password', async (req, res) => {
     return res.json({ success: false, message: '验证码错误' })
   }
   
+  if (!validatePassword(newPassword)) {
+    return res.json({ success: false, message: '密码必须至少6位，且包含大小写字母和数字' })
+  }
+  
   const freshUsers = loadUsers()
   const userIndex = freshUsers.findIndex(u => u.email === email)
   
@@ -428,16 +451,20 @@ app.get('/api/admin/users', authenticateToken, (_req, res) => {
 })
 
 app.post('/api/admin/users', authenticateToken, (req, res) => {
-  const { username, name, role, area, email, webexId } = req.body
+  const { username, name, role, area, email, webexId, password } = req.body
   
   if (!email && !webexId) {
     return res.json({ success: false, message: '请至少填写邮箱或Webex ID中的一项' })
   }
   
+  if (password && !validatePassword(password)) {
+    return res.json({ success: false, message: '密码必须至少6位，且包含大小写字母和数字' })
+  }
+  
   const newUser: User = {
     id: Date.now().toString(),
     username,
-    password: bcrypt.hashSync('123456', 10),
+    password: bcrypt.hashSync(password || '123456', 10),
     name,
     role,
     area: area || '',
@@ -511,7 +538,7 @@ app.post('/api/workorder/submit', async (req, res) => {
     deviceType,
     deviceLocation,
     projectId,
-    projectName: ['系统故障', '网络故障', '硬件故障', '软件问题', '设备升级', '数据恢复', '其他问题'][parseInt(projectId) - 1] || '其他问题',
+    projectName: ['系统故障', '网络故障', '硬件故障', '软件问题', '设备升级', '信息安全', '语音通讯', '资料恢复', '更新升级', '其他问题'][parseInt(projectId) - 1] || '其他问题',
     description,
     repairType,
     notificationChannels,

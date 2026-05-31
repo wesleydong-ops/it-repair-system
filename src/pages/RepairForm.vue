@@ -132,19 +132,22 @@
                   <span class="text-red-500">*</span> 维修项目/故障分类
                 </label>
                 <select
-                  v-model="form.projectId"
-                  class="form-select"
-                  @change="validateField('projectId')"
-                >
-                  <option value="">请选择维修项目</option>
-                  <option value="1">系统故障</option>
-                  <option value="2">网络故障</option>
-                  <option value="3">硬件故障</option>
-                  <option value="4">软件问题</option>
-                  <option value="5">设备升级</option>
-                  <option value="6">数据恢复</option>
-                  <option value="7">其他问题</option>
-                </select>
+              v-model="form.projectId"
+              class="form-select"
+              @change="validateField('projectId')"
+            >
+              <option value="">请选择维修项目</option>
+              <option value="1">系统故障</option>
+              <option value="2">网络故障</option>
+              <option value="3">硬件故障</option>
+              <option value="4">软件问题</option>
+              <option value="5">设备升级</option>
+              <option value="6">信息安全</option>
+              <option value="7">语音通讯</option>
+              <option value="8">资料恢复</option>
+              <option value="9">更新升级</option>
+              <option value="10">其他问题</option>
+            </select>
                 <p v-if="errors.projectId" class="text-red-500 text-sm mt-2">{{ errors.projectId }}</p>
               </div>
 

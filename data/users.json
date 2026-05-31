@@ -20,7 +20,7 @@
     "area": "A",
     "email": "chen@foxlink.com",
     "webexId": "chen",
-    "isActive": true,
+    "isActive": false,
     "createTime": "2024-01-02 10:00:00"
   },
   {
@@ -32,7 +32,7 @@
     "area": "CK",
     "email": "li@foxlink.com",
     "webexId": "li",
-    "isActive": true,
+    "isActive": false,
     "createTime": "2024-01-03 11:00:00"
   },
   {
@@ -44,7 +44,7 @@
     "area": "A",
     "email": "wang@foxlink.com",
     "webexId": "wang",
-    "isActive": true,
+    "isActive": false,
     "createTime": "2024-01-04 14:00:00"
   },
   {
@@ -124,7 +124,7 @@
     "username": "candy_zhu",
     "password": "$2a$10$6ZamRCQZBdPITGI20sk3XewNVh85VUozw9fJU8LRC2.t8s3kA9Zim",
     "name": "朱慧",
-    "role": "engineer",
+    "role": "purchase",
     "area": "CK",
     "email": "candy_zhu@foxlink.com",
     "webexId": "candy_zhu@foxlink.com",
@@ -142,5 +142,17 @@
     "webexId": "kaifeng_zhu@foxlink.com",
     "isActive": true,
     "createTime": "2026/5/30 13:44:38"
+  },
+  {
+    "id": "1780152741739",
+    "username": "haihang_fan",
+    "password": "$2a$10$5.MUAFn1WuIiBGtJtMmYNeGxjSF1DOugCTSqVm3.Q9Pwll9zZMm5u",
+    "name": "范海航",
+    "role": "engineer",
+    "area": "CK",
+    "email": "haihang_fan@foxlink.com",
+    "webexId": "haihang_fan@foxlink.com",
+    "isActive": true,
+    "createTime": "2026/5/30 22:52:21"
   }
 ]

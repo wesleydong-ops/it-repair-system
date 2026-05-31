@@ -106,7 +106,7 @@
       </div>
 
       <div v-if="showMemberModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div class="card max-w-md mx-4 fade-in">
+        <div class="card max-w-md mx-4 fade-in" @input="saveDraft">
           <h3 class="text-xl font-bold text-gray-800 mb-4">添加成员到 {{ selectedGroup?.name }}</h3>
           <div>
             <label class="form-label">选择工程师</label>
@@ -164,6 +164,44 @@ const showMemberModal = ref(false)
 const selectedGroup = ref<Group | null>(null)
 const selectedEngineer = ref('')
 
+const GROUP_CACHE_KEY = 'admin_group_draft'
+
+const saveDraft = () => {
+  try {
+    if (selectedGroup.value || selectedEngineer.value) {
+      sessionStorage.setItem(GROUP_CACHE_KEY, JSON.stringify({
+        selectedGroup: selectedGroup.value,
+        selectedEngineer: selectedEngineer.value
+      }))
+    }
+  } catch (error) {
+    console.error('保存草稿失败')
+  }
+}
+
+const restoreDraft = (): boolean => {
+  try {
+    const cached = sessionStorage.getItem(GROUP_CACHE_KEY)
+    if (cached) {
+      const draft = JSON.parse(cached)
+      selectedGroup.value = draft.selectedGroup
+      selectedEngineer.value = draft.selectedEngineer
+      return true
+    }
+  } catch (error) {
+    console.error('恢复草稿失败')
+  }
+  return false
+}
+
+const clearDraft = () => {
+  try {
+    sessionStorage.removeItem(GROUP_CACHE_KEY)
+  } catch (error) {
+    console.error('清除草稿失败')
+  }
+}
+
 const loadGroups = async () => {
   try {
     const response = await fetch('/api/admin/groups', {
@@ -207,8 +245,17 @@ const availableEngineers = computed(() => {
 
 const showAddMemberModal = async (group: Group) => {
   await loadEngineers()
-  selectedGroup.value = group
-  selectedEngineer.value = ''
+  const hasDraft = restoreDraft()
+  if (hasDraft && selectedGroup.value?.id !== group.id) {
+    if (!confirm('检测到未保存的内容,是否恢复?')) {
+      clearDraft()
+      selectedGroup.value = group
+      selectedEngineer.value = ''
+    }
+  } else {
+    selectedGroup.value = group
+    selectedEngineer.value = ''
+  }
   showMemberModal.value = true
 }
 
@@ -216,6 +263,7 @@ const closeMemberModal = () => {
   showMemberModal.value = false
   selectedGroup.value = null
   selectedEngineer.value = ''
+  clearDraft()
 }
 
 const addMember = async () => {
@@ -237,6 +285,7 @@ const addMember = async () => {
       if (result.success) {
         selectedGroup.value.members.push(engineer)
         alert(`已将${engineer.name}添加到${selectedGroup.value.name}`)
+        clearDraft()
       } else {
         alert('添加失败：' + result.message)
       }

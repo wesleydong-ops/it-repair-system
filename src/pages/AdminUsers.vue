@@ -162,7 +162,7 @@
       </div>
 
       <div v-if="showAddModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div class="card max-w-md mx-4 fade-in">
+        <div class="card max-w-md mx-4 fade-in" @input="saveDraft">
           <h3 class="text-xl font-bold text-gray-800 mb-4">{{ editUserModel.id ? '编辑用户' : '添加用户' }}</h3>
           <div class="space-y-4">
             <div>
@@ -200,8 +200,8 @@
               <input v-model="editUserModel.webexId" type="text" class="form-input" placeholder="Webex消息通知" />
             </div>
             <div v-if="!editUserModel.id">
-              <label class="form-label">初始密码</label>
-              <input v-model="editUserModel.password" type="password" class="form-input" placeholder="默认密码: 123456" />
+              <label class="form-label">初始密码 <span class="text-gray-400">(选填)</span></label>
+              <input v-model="editUserModel.password" type="password" class="form-input" placeholder="至少6位，包含大小写字母和数字" />
             </div>
           </div>
           <div class="flex justify-end gap-3 mt-6">
@@ -249,6 +249,8 @@ const filters = reactive({
 
 const showAddModal = ref(false)
 
+const USER_CACHE_KEY = 'admin_user_draft'
+
 const editUserModel = reactive({
   id: '',
   username: '',
@@ -259,6 +261,38 @@ const editUserModel = reactive({
   email: '',
   webexId: ''
 })
+
+const saveDraft = () => {
+  try {
+    if (editUserModel.id || editUserModel.username || editUserModel.name) {
+      sessionStorage.setItem(USER_CACHE_KEY, JSON.stringify(editUserModel))
+    }
+  } catch (error) {
+    console.error('保存草稿失败')
+  }
+}
+
+const restoreDraft = (): boolean => {
+  try {
+    const cached = sessionStorage.getItem(USER_CACHE_KEY)
+    if (cached) {
+      const draft = JSON.parse(cached)
+      Object.assign(editUserModel, draft)
+      return true
+    }
+  } catch (error) {
+    console.error('恢复草稿失败')
+  }
+  return false
+}
+
+const clearDraft = () => {
+  try {
+    sessionStorage.removeItem(USER_CACHE_KEY)
+  } catch (error) {
+    console.error('清除草稿失败')
+  }
+}
 
 const users = ref<User[]>([])
 
@@ -278,14 +312,29 @@ const formatDate = (dateStr: string) => {
 }
 
 const editUser = (user: User) => {
-  editUserModel.id = user.id
-  editUserModel.username = user.username
-  editUserModel.name = user.name
-  editUserModel.role = user.role
-  editUserModel.area = user.area || ''
-  editUserModel.password = ''
-  editUserModel.email = user.email || ''
-  editUserModel.webexId = user.webexId || ''
+  const hasDraft = restoreDraft()
+  if (hasDraft) {
+    if (!confirm('检测到未保存的编辑内容,是否恢复?')) {
+      clearDraft()
+      editUserModel.id = user.id
+      editUserModel.username = user.username
+      editUserModel.name = user.name
+      editUserModel.role = user.role
+      editUserModel.area = user.area || ''
+      editUserModel.password = ''
+      editUserModel.email = user.email || ''
+      editUserModel.webexId = user.webexId || ''
+    }
+  } else {
+    editUserModel.id = user.id
+    editUserModel.username = user.username
+    editUserModel.name = user.name
+    editUserModel.role = user.role
+    editUserModel.area = user.area || ''
+    editUserModel.password = ''
+    editUserModel.email = user.email || ''
+    editUserModel.webexId = user.webexId || ''
+  }
   showAddModal.value = true
 }
 
@@ -299,6 +348,7 @@ const closeModal = () => {
   editUserModel.password = ''
   editUserModel.email = ''
   editUserModel.webexId = ''
+  clearDraft()
 }
 
 const loadUsers = async () => {
@@ -336,6 +386,30 @@ const loadCurrentUser = async () => {
 loadUsers()
 loadCurrentUser()
 
+const validatePassword = (password: string): boolean => {
+  if (password.length < 6) {
+    alert('密码长度至少为6位')
+    return false
+  }
+  
+  if (!/[A-Z]/.test(password)) {
+    alert('密码必须包含至少一个大写字母')
+    return false
+  }
+  
+  if (!/[a-z]/.test(password)) {
+    alert('密码必须包含至少一个小写字母')
+    return false
+  }
+  
+  if (!/[0-9]/.test(password)) {
+    alert('密码必须包含至少一个数字')
+    return false
+  }
+  
+  return true
+}
+
 const saveUser = async () => {
   try {
     if (!editUserModel.username || !editUserModel.name) {
@@ -346,6 +420,10 @@ const saveUser = async () => {
     if ((editUserModel.role === 'admin' || editUserModel.role === 'operator' || editUserModel.role === 'engineer') && 
         !editUserModel.email && !editUserModel.webexId) {
       alert('工程师及管理员必须填写邮箱或Webex ID至少一项，用于接收工单通知和密码重置')
+      return
+    }
+
+    if (!editUserModel.id && editUserModel.password && !validatePassword(editUserModel.password)) {
       return
     }
 
@@ -363,6 +441,8 @@ const saveUser = async () => {
 
     if (editUserModel.id) {
       bodyData.isActive = users.value.find(u => u.id === editUserModel.id)?.isActive ?? true
+    } else if (editUserModel.password) {
+      bodyData.password = editUserModel.password
     }
 
     const response = await fetch(url, {
@@ -379,6 +459,7 @@ const saveUser = async () => {
       alert('保存成功')
       closeModal()
       loadUsers()
+      clearDraft()
     } else {
       alert('保存失败：' + result.message)
     }
