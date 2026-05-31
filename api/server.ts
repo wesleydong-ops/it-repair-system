@@ -93,6 +93,7 @@ const systemSettings = loadSettings()
 
 const WORKORDERS_FILE = path.join(DATA_DIR, 'workorders.json')
 const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json')
+const GROUPS_FILE = path.join(DATA_DIR, 'groups.json')
 
 const defaultProjects = [
   { id: '1', name: '系统故障', category: '系统故障', description: '操作系统相关故障', sortOrder: 1, isActive: true },
@@ -139,6 +140,55 @@ const saveProjects = (projectList: Project[]): void => {
     console.log('项目数据已保存')
   } catch (error) {
     console.error('保存项目数据失败:', error)
+  }
+}
+
+interface GroupMember {
+  id: string
+  username: string
+  name: string
+  role: string
+  area: string
+  isActive: boolean
+}
+
+interface Group {
+  id: string
+  name: string
+  area: string
+  description: string
+  isActive: boolean
+  members: GroupMember[]
+}
+
+const defaultGroups: Group[] = [
+  { id: '1', name: 'A区维修组', area: 'A', description: '负责A区所有办公区域、设备报修工单', isActive: true, members: [] },
+  { id: '2', name: 'CK区维修组', area: 'CK', description: '负责CK区所有区域、设备报修工单', isActive: true, members: [] }
+]
+
+const loadGroups = (): Group[] => {
+  try {
+    if (fs.existsSync(GROUPS_FILE)) {
+      const data = fs.readFileSync(GROUPS_FILE, 'utf8')
+      return JSON.parse(data)
+    }
+    saveGroups(defaultGroups)
+    return defaultGroups
+  } catch (error) {
+    console.error('加载分组数据失败:', error)
+    return defaultGroups
+  }
+}
+
+const saveGroups = (groupList: Group[]): void => {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true })
+    }
+    fs.writeFileSync(GROUPS_FILE, JSON.stringify(groupList, null, 2))
+    console.log('分组数据已保存')
+  } catch (error) {
+    console.error('保存分组数据失败:', error)
   }
 }
 
@@ -737,12 +787,8 @@ app.post('/api/workorder/:id/external', authenticateToken, (req, res) => {
   res.json({ success: true, message: '外修申请已提交', data: { reason, parts, estimatedCost, repairCompany } })
 })
 
-app.get('/api/admin/groups', authenticateToken, (req, res) => {
-  const groups = [
-    { id: '1', name: 'A区维修组', area: 'A', description: '负责A区所有办公区域、设备报修工单', isActive: true, members: users.filter(u => u.role === 'engineer' && u.area === 'A') },
-    { id: '2', name: 'CK区维修组', area: 'CK', description: '负责CK区所有区域、设备报修工单', isActive: true, members: users.filter(u => u.role === 'engineer' && u.area === 'CK') }
-  ]
-  
+app.get('/api/admin/groups', authenticateToken, (_req, res) => {
+  const groups = loadGroups()
   res.json({ success: true, data: groups })
 })
 
@@ -752,12 +798,66 @@ app.post('/api/admin/groups', authenticateToken, (req, res) => {
   res.json({ success: true, message: '分组创建成功', data: { id: Date.now().toString(), name, area, description, isActive: true, members: [] } })
 })
 
-app.post('/api/admin/groups/:id/members', authenticateToken, (_req, res) => {
-  res.json({ success: true, message: '成员添加成功' })
+app.post('/api/admin/groups/:id/members', authenticateToken, (req, res) => {
+  const { id } = req.params
+  const { userId } = req.body
+
+  const freshUsers = loadUsers()
+  const user = freshUsers.find(u => u.id === userId)
+
+  if (!user) {
+    return res.status(404).json({ success: false, message: '用户不存在' })
+  }
+
+  const groups = loadGroups()
+  const groupIndex = groups.findIndex(g => g.id === id)
+
+  if (groupIndex === -1) {
+    return res.status(404).json({ success: false, message: '分组不存在' })
+  }
+
+  // 检查成员是否已在分组中
+  const memberExists = groups[groupIndex].members.some(m => m.id === userId)
+  if (memberExists) {
+    return res.json({ success: false, message: '该成员已在分组中' })
+  }
+
+  // 添加成员到分组
+  const newMember: GroupMember = {
+    id: user.id,
+    username: user.username,
+    name: user.name,
+    role: user.role,
+    area: user.area,
+    isActive: user.isActive
+  }
+
+  groups[groupIndex].members.push(newMember)
+  saveGroups(groups)
+
+  res.json({ success: true, message: '成员添加成功', data: groups[groupIndex] })
 })
 
-app.delete('/api/admin/groups/:id/members/:userId', authenticateToken, (_req, res) => {
-  res.json({ success: true, message: '成员移除成功' })
+app.delete('/api/admin/groups/:id/members/:userId', authenticateToken, (req, res) => {
+  const { id, userId } = req.params
+
+  const groups = loadGroups()
+  const groupIndex = groups.findIndex(g => g.id === id)
+
+  if (groupIndex === -1) {
+    return res.status(404).json({ success: false, message: '分组不存在' })
+  }
+
+  // 从分组中移除成员
+  const memberIndex = groups[groupIndex].members.findIndex(m => m.id === userId)
+  if (memberIndex === -1) {
+    return res.status(404).json({ success: false, message: '成员不在该分组中' })
+  }
+
+  groups[groupIndex].members.splice(memberIndex, 1)
+  saveGroups(groups)
+
+  res.json({ success: true, message: '成员移除成功', data: groups[groupIndex] })
 })
 
 app.get('/api/admin/projects', authenticateToken, (_req, res) => {
