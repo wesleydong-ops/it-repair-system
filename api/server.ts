@@ -598,6 +598,43 @@ app.delete('/api/admin/users/:id', authenticateToken, (req, res) => {
 app.post('/api/workorder/submit', async (req, res) => {
   const { applicantName, department, location, extension, email, webexId, assetNo, deviceType, deviceLocation, projectId, description, repairType, notificationChannels, priority, area } = req.body
   
+  // 自动派单：查找对应区域的分组，按组内工程师当前工单数最少的分配
+  let assignedEngineerId = ''
+  let assignedEngineerName = ''
+  let orderStatus = 'pending'
+  
+  const groups = loadGroups()
+  const matchedGroup = groups.find(g => g.area === area && g.isActive)
+  
+  if (matchedGroup && matchedGroup.members.length > 0) {
+    // 获取组内活跃工程师
+    const activeMembers = matchedGroup.members.filter(m => m.isActive)
+    
+    if (activeMembers.length > 0) {
+      // 统计每个工程师当前处理中的工单数（accepted + processing）
+      const engineerLoad: Record<string, number> = {}
+      activeMembers.forEach(m => {
+        engineerLoad[m.id] = workorders.filter(o => 
+          o.engineerId === m.id && (o.status === 'accepted' || o.status === 'processing')
+        ).length
+      })
+      
+      // 选择工单数最少的工程师（平均派单）
+      let minLoad = Infinity
+      let selectedMember = activeMembers[0]
+      for (const member of activeMembers) {
+        if (engineerLoad[member.id] < minLoad) {
+          minLoad = engineerLoad[member.id]
+          selectedMember = member
+        }
+      }
+      
+      assignedEngineerId = selectedMember.id
+      assignedEngineerName = selectedMember.name
+      orderStatus = 'accepted' // 自动派单直接变为已接单
+    }
+  }
+  
   const newOrder = {
     id: Date.now().toString(),
     orderNo: `WO-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}-${String(workorders.length + 1).padStart(3, '0')}`,
@@ -616,11 +653,11 @@ app.post('/api/workorder/submit', async (req, res) => {
     repairType,
     notificationChannels,
     priority,
-    status: 'pending',
+    status: orderStatus,
     area,
-    engineerId: '',
-    engineerName: '',
-    statusLog: '',
+    engineerId: assignedEngineerId,
+    engineerName: assignedEngineerName,
+    statusLog: assignedEngineerId ? `系统自动派单给${assignedEngineerName}` : '',
     createTime: new Date().toLocaleString('zh-CN'),
     updateTime: new Date().toLocaleString('zh-CN'),
     externalReason: '',

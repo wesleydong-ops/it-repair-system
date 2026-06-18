@@ -63,7 +63,8 @@
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
             <AlertCircle class="w-5 h-5 text-orange-500" />
-            待接单工单
+            可抢单工单
+            <span class="text-sm font-normal text-gray-400">（未分配工单，可主动抢单增加业绩）</span>
           </h2>
           <span class="text-sm text-gray-500">双击抢单</span>
         </div>
