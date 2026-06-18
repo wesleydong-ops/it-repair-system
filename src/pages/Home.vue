@@ -244,8 +244,8 @@
             </div>
           </div>
           <div class="flex-shrink-0">
-            <div class="w-32 h-32 bg-white rounded-2xl flex items-center justify-center shadow-xl">
-              <QrCode class="w-24 h-24 text-gray-700" />
+            <div class="w-32 h-32 bg-white rounded-2xl flex items-center justify-center shadow-xl p-2">
+              <canvas ref="qrCanvas" class="w-full h-full"></canvas>
             </div>
             <p class="text-center text-white/80 text-sm mt-3">扫码快速报修</p>
           </div>
@@ -277,12 +277,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import QRCode from 'qrcode'
 import { 
   Wrench, Plus, FileText, ClipboardList, Ticket, CheckCircle, Clock, Users, 
-  BarChart3, Info, QrCode, FileEdit, Bell, Home as HomeIcon, User, ChevronRight, ShieldCheck,
+  BarChart3, Info, FileEdit, Bell, Home as HomeIcon, User, ChevronRight, ShieldCheck,
   Phone, Mail, MessageCircle
 } from 'lucide-vue-next'
+
+const qrCanvas = ref<HTMLCanvasElement | null>(null)
+
+// 生成二维码，内容为报修表单页面URL
+onMounted(() => {
+  if (qrCanvas.value) {
+    const repairUrl = `${window.location.origin}/repair`
+    QRCode.toCanvas(qrCanvas.value, repairUrl, {
+      width: 200,
+      margin: 1,
+      color: { dark: '#1e3a5f', light: '#ffffff' }
+    })
+  }
+})
 
 const todayOrders = ref(12)
 const completionRate = ref(94)
