@@ -123,6 +123,14 @@ body {
   @apply bg-orange-100 text-orange-700 px-3 py-1.5 rounded-full text-xs font-semibold;
 }
 
+.status-external-pending {
+  @apply bg-purple-100 text-purple-700 px-3 py-1.5 rounded-full text-xs font-semibold;
+}
+
+.status-external-processing {
+  @apply bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-full text-xs font-semibold;
+}
+
 .status-completed {
   @apply bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-xs font-semibold;
 }

@@ -42,12 +42,18 @@
             </a>
           </li>
           <li>
+            <a href="/admin/workorders" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+              <ClipboardList class="w-5 h-5" />
+              工单管理
+            </a>
+          </li>
+          <li>
             <a href="/admin/statistics" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
               <BarChart3 class="w-5 h-5" />
               数据统计
             </a>
           </li>
-          <li>
+          <li v-if="userRole !== 'operator'">
             <a href="/admin/settings" class="flex items-center gap-3 px-4 py-3 bg-darkblue text-white rounded-xl shadow-md">
               <Settings class="w-5 h-5" />
               系统设置
@@ -122,19 +128,50 @@
 
         <div class="card fade-in">
           <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-            <Phone class="w-5 h-5 mr-2 text-primary" />
-            分机呼叫配置
+            <Globe class="w-5 h-5 mr-2 text-primary" />
+            HTTPS证书配置
           </h3>
           <div class="space-y-4">
             <div>
-              <label class="form-label">分机服务器地址</label>
-              <input v-model="settings.extensionServer" type="text" class="form-input" />
+              <label class="form-label">证书文件 (CRT/PEM)</label>
+              <div class="flex gap-2">
+                <input v-model="settings.certFileName" type="text" class="form-input flex-1" readonly placeholder="未上传证书" />
+                <label class="btn-outline cursor-pointer">
+                  <Upload class="w-4 h-4 inline mr-1" />
+                  上传
+                  <input type="file" accept=".crt,.pem,.cer,.cert" class="hidden" @change="handleCertUpload" />
+                </label>
+              </div>
+              <p class="text-gray-400 text-sm mt-1">支持 .crt, .pem, .cer, .cert 格式</p>
             </div>
             <div>
-              <label class="form-label">分机端口</label>
-              <input v-model.number="settings.extensionPort" type="number" class="form-input" />
+              <label class="form-label">私钥文件 (KEY)</label>
+              <div class="flex gap-2">
+                <input v-model="settings.keyFileName" type="text" class="form-input flex-1" readonly placeholder="未上传私钥" />
+                <label class="btn-outline cursor-pointer">
+                  <Upload class="w-4 h-4 inline mr-1" />
+                  上传
+                  <input type="file" accept=".key,.pem" class="hidden" @change="handleKeyUpload" />
+                </label>
+              </div>
+              <p class="text-gray-400 text-sm mt-1">支持 .key, .pem 格式</p>
+            </div>
+            <div>
+              <label class="form-label">私钥密码 (Key Password)</label>
+              <input v-model="settings.certPassword" type="password" class="form-input" placeholder="如果私钥已加密，请输入密码" />
+              <p class="text-gray-400 text-sm mt-1">如果私钥已加密(PEM pass phrase)，请填写密码</p>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-lg">
+              <p class="text-sm text-gray-600">
+                <span class="font-medium text-orange-600">提示：</span>证书上传后需重启服务生效。
+                证书存放路径：<code class="bg-gray-200 px-1 rounded">{{ settings.certPath }}</code>
+              </p>
             </div>
           </div>
+          <button @click="testHttps" class="btn-outline mt-4">
+            <ShieldCheck class="w-4 h-4 inline mr-1" />
+            测试HTTPS连接
+          </button>
         </div>
 
         <div class="card fade-in">
@@ -239,12 +276,22 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, onMounted } from 'vue'
-import { Wrench, LayoutDashboard, Users, Settings, BarChart3, LogOut, Mail, MessageSquare, Phone, Globe, Bell, Send, Save, Home } from 'lucide-vue-next'
+import { reactive, onMounted, ref, computed } from 'vue'
+import { Wrench, LayoutDashboard, Users, Settings, BarChart3, LogOut, Mail, MessageSquare, Globe, Bell, Send, Save, Home, Upload, ShieldCheck, ClipboardList } from 'lucide-vue-next'
 import { authApi, adminApi } from '../api'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+
+// 获取当前用户角色，运维员(operator)隐藏系统设置
+const userRole = computed(() => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    return user.role || ''
+  } catch {
+    return ''
+  }
+})
 
 const goHome = () => {
   window.location.href = '/'
@@ -258,17 +305,100 @@ const settings = reactive({
   smtpSecure: false,
   webexToken: '',
   webexRoomId: '',
-  extensionServer: 'pbx.example.com',
-  extensionPort: 5060,
   systemUrl: 'https://localhost:8443',
   httpsPort: 443,
-  certPath: '/etc/ssl/certs/',
+  certPath: './certs',
+  certFileName: '',
+  keyFileName: '',
+  certPassword: '',
   notifications: {
     orderSubmit: true,
     orderAccept: true,
     orderComplete: true
   }
 })
+
+const isUploading = ref(false)
+
+const handleCertUpload = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  isUploading.value = true
+  try {
+    const formData = new FormData()
+    formData.append('certFile', file)
+
+    const response = await fetch('/api/admin/settings/upload-cert', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: formData
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      settings.certFileName = file.name
+      alert('证书上传成功')
+    } else {
+      alert('证书上传失败：' + result.message)
+    }
+  } catch (error) {
+    alert('证书上传失败：网络错误')
+  } finally {
+    isUploading.value = false
+  }
+}
+
+const handleKeyUpload = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  isUploading.value = true
+  try {
+    const formData = new FormData()
+    formData.append('keyFile', file)
+
+    const response = await fetch('/api/admin/settings/upload-key', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: formData
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      settings.keyFileName = file.name
+      alert('私钥上传成功')
+    } else {
+      alert('私钥上传失败：' + result.message)
+    }
+  } catch (error) {
+    alert('私钥上传失败：网络错误')
+  } finally {
+    isUploading.value = false
+  }
+}
+
+const testHttps = async () => {
+  const baseUrl = settings.systemUrl.replace(/\/$/, '')
+  try {
+    const response = await fetch(`${baseUrl}/api/health`, {
+      method: 'GET'
+    })
+    if (response.ok || response.status === 404) {
+      alert('HTTPS连接正常')
+    } else {
+      alert('HTTPS连接异常')
+    }
+  } catch (error) {
+    alert('HTTPS连接失败，请检查证书配置是否正确')
+  }
+}
 
 const SETTINGS_CACHE_KEY = 'admin_settings_draft'
 
@@ -336,7 +466,20 @@ const testWebex = async () => {
 
 const saveSettings = async () => {
   try {
-    const response = await adminApi.updateSettings(settings)
+    const saveData = {
+      smtpHost: settings.smtpHost,
+      smtpPort: settings.smtpPort,
+      smtpUsername: settings.smtpUsername,
+      smtpPassword: settings.smtpPassword,
+      smtpSecure: settings.smtpSecure,
+      webexToken: settings.webexToken,
+      webexRoomId: settings.webexRoomId,
+      systemUrl: settings.systemUrl,
+      httpsPort: settings.httpsPort,
+      certPath: settings.certPath,
+      certPassword: settings.certPassword
+    }
+    const response = await adminApi.updateSettings(saveData)
     if (response.data.success) {
       alert('设置保存成功')
       clearDraft()
@@ -361,9 +504,12 @@ const loadSettings = async () => {
         settings.smtpSecure = data.smtpSecure || settings.smtpSecure
         settings.webexToken = data.webexToken || settings.webexToken
         settings.webexRoomId = data.webexRoomId || settings.webexRoomId
-        settings.extensionServer = data.extensionServer || settings.extensionServer
-        settings.extensionPort = data.extensionPort || settings.extensionPort
         settings.systemUrl = data.systemUrl || settings.systemUrl
+        settings.httpsPort = data.httpsPort || settings.httpsPort
+        settings.certPath = data.certPath || settings.certPath
+        settings.certPassword = data.certPassword || ''
+        settings.certFileName = data.certFileName || ''
+        settings.keyFileName = data.keyFileName || ''
       }
     }
   } catch (error) {

@@ -40,12 +40,18 @@
             </a>
           </li>
           <li>
+            <a href="/admin/workorders" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+              <ClipboardList class="w-5 h-5" />
+              工单管理
+            </a>
+          </li>
+          <li>
             <a href="/admin/statistics" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
               <BarChart3 class="w-5 h-5" />
               数据统计
             </a>
           </li>
-          <li>
+          <li v-if="userRole !== 'operator'">
             <a href="/admin/settings" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
               <Settings class="w-5 h-5" />
               系统设置
@@ -105,14 +111,16 @@
             </select>
           </div>
           <div class="flex-1"></div>
-          <div class="relative">
-            <Search class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <div class="flex gap-2">
             <input
               v-model="filters.search"
               type="text"
-              class="form-input pl-10 w-64"
+              class="form-input w-64"
               placeholder="搜索用户名或姓名..."
             />
+            <button class="btn-outline px-4">
+              <Search class="w-4 h-4" />
+            </button>
           </div>
         </div>
 
@@ -193,11 +201,7 @@
             </div>
             <div>
               <label class="form-label">邮箱 <span class="text-red-500">*</span></label>
-              <input v-model="editUserModel.email" type="email" class="form-input" placeholder="用于接收工单通知和密码重置" />
-            </div>
-            <div>
-              <label class="form-label">Webex ID <span class="text-gray-400">(选填)</span></label>
-              <input v-model="editUserModel.webexId" type="text" class="form-input" placeholder="Webex消息通知" />
+              <input v-model="editUserModel.email" type="email" class="form-input" placeholder="用于接收工单通知、密码重置，默认作为Webex ID" />
             </div>
             <div v-if="!editUserModel.id">
               <label class="form-label">初始密码 <span class="text-gray-400">(选填)</span></label>
@@ -215,8 +219,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { LayoutDashboard, Users, Settings, BarChart3, LogOut, Plus, Search, Home } from 'lucide-vue-next'
+import { ref, reactive, onMounted } from 'vue'
+import { LayoutDashboard, Users, Settings, BarChart3, LogOut, Plus, Search, ClipboardList, Home } from 'lucide-vue-next'
 import { authApi } from '../api'
 import { useRouter } from 'vue-router'
 
@@ -233,6 +237,16 @@ interface User {
 }
 
 const router = useRouter()
+
+// 获取当前用户角色，运维员(operator)隐藏系统设置
+const userRole = computed(() => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    return user.role || ''
+  } catch {
+    return ''
+  }
+})
 
 const currentUser = ref<{ id: string; username: string; name: string; role: string } | null>(null)
 
@@ -383,8 +397,10 @@ const loadCurrentUser = async () => {
   }
 }
 
-loadUsers()
-loadCurrentUser()
+onMounted(() => {
+  loadUsers()
+  loadCurrentUser()
+})
 
 const validatePassword = (password: string): boolean => {
   if (password.length < 6) {
@@ -436,7 +452,7 @@ const saveUser = async () => {
       role: editUserModel.role,
       area: editUserModel.area,
       email: editUserModel.email,
-      webexId: editUserModel.webexId
+      webexId: editUserModel.email || editUserModel.webexId
     }
 
     if (editUserModel.id) {

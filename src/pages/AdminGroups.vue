@@ -40,12 +40,18 @@
             </a>
           </li>
           <li>
+            <a href="/admin/workorders" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+              <ClipboardList class="w-5 h-5" />
+              工单管理
+            </a>
+          </li>
+          <li>
             <a href="/admin/statistics" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
               <BarChart3 class="w-5 h-5" />
               数据统计
             </a>
           </li>
-          <li>
+          <li v-if="userRole !== 'operator'">
             <a href="/admin/settings" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
               <Settings class="w-5 h-5" />
               系统设置
@@ -63,8 +69,16 @@
 
     <main class="ml-64 p-8">
       <header class="mb-8">
-        <h1 class="text-2xl font-bold text-gray-800">工程师分组</h1>
-        <p class="text-gray-600 mt-2">管理工程师分组和成员分配</p>
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-800">工程师分组</h1>
+            <p class="text-gray-600 mt-2">管理工程师分组和成员分配</p>
+          </div>
+          <button @click="showCreateGroupModal" class="btn-primary">
+            <Plus class="w-4 h-4 inline mr-1" />
+            创建分组
+          </button>
+        </div>
       </header>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -72,11 +86,15 @@
           <div class="flex items-center justify-between mb-4">
             <div>
               <h3 class="text-lg font-semibold text-gray-800">{{ group.name }}</h3>
-              <p class="text-gray-500 text-sm">{{ group.description }}</p>
+              <p class="text-gray-500 text-sm">{{ group.description }} · {{ group.area }}区</p>
             </div>
-            <span :class="group.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'" class="px-3 py-1 rounded-full text-sm font-medium">
-              {{ group.isActive ? '启用' : '停用' }}
-            </span>
+            <div class="flex items-center gap-2">
+              <span :class="group.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'" class="px-3 py-1 rounded-full text-sm font-medium">
+                {{ group.isActive ? '启用' : '停用' }}
+              </span>
+              <button @click="showEditGroupModal(group)" class="text-primary hover:text-blue-600 text-sm">编辑</button>
+              <button @click="deleteGroup(group)" class="text-red-500 hover:text-red-700 text-sm">删除</button>
+            </div>
           </div>
 
           <div class="mb-4">
@@ -123,17 +141,60 @@
           </div>
         </div>
       </div>
+
+      <!-- 分组创建/编辑模态框 -->
+      <div v-if="showGroupModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="card max-w-md mx-4 fade-in">
+          <h3 class="text-xl font-bold text-gray-800 mb-4">{{ groupForm.id ? '编辑分组' : '创建分组' }}</h3>
+          <div class="space-y-4">
+            <div>
+              <label class="form-label">分组名称</label>
+              <input v-model="groupForm.name" type="text" class="form-input" placeholder="请输入分组名称" />
+            </div>
+            <div>
+              <label class="form-label">所属区域</label>
+              <select v-model="groupForm.area" class="form-select">
+                <option value="">请选择区域</option>
+                <option value="A">A区</option>
+                <option value="CK">CK区</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">描述</label>
+              <textarea v-model="groupForm.description" class="form-textarea" rows="3" placeholder="请输入分组描述"></textarea>
+            </div>
+            <div class="flex items-center gap-2">
+              <input v-model="groupForm.isActive" type="checkbox" class="form-checkbox" />
+              <label class="text-sm text-gray-600">启用</label>
+            </div>
+          </div>
+          <div class="flex justify-end gap-3 mt-6">
+            <button @click="closeGroupModal" class="btn-outline">取消</button>
+            <button @click="saveGroup" class="btn-primary">保存</button>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { LayoutDashboard, Users, Settings, BarChart3, LogOut, User, Plus, X, Home } from 'lucide-vue-next'
+import { LayoutDashboard, Users, Settings, BarChart3, LogOut, User, Plus, X, ClipboardList, Home } from 'lucide-vue-next'
 import { authApi } from '../api'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+
+// 获取当前用户角色，运维员(operator)隐藏系统设置
+const userRole = computed(() => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    return user.role || ''
+  } catch {
+    return ''
+  }
+})
 
 const goHome = () => {
   window.location.href = '/'
@@ -163,6 +224,15 @@ const allEngineers = ref<Engineer[]>([])
 const showMemberModal = ref(false)
 const selectedGroup = ref<Group | null>(null)
 const selectedEngineer = ref('')
+
+const showGroupModal = ref(false)
+const groupForm = ref({
+  id: '',
+  name: '',
+  area: '',
+  description: '',
+  isActive: true
+})
 
 const GROUP_CACHE_KEY = 'admin_group_draft'
 
@@ -317,6 +387,103 @@ const removeMember = async (groupId: string, memberId: string) => {
     } catch (error) {
       alert('移除失败：网络错误')
     }
+  }
+}
+
+const showCreateGroupModal = () => {
+  groupForm.value = {
+    id: '',
+    name: '',
+    area: '',
+    description: '',
+    isActive: true
+  }
+  showGroupModal.value = true
+}
+
+const showEditGroupModal = (group: Group) => {
+  groupForm.value = {
+    id: group.id,
+    name: group.name,
+    area: group.area,
+    description: group.description,
+    isActive: group.isActive
+  }
+  showGroupModal.value = true
+}
+
+const closeGroupModal = () => {
+  showGroupModal.value = false
+  groupForm.value = {
+    id: '',
+    name: '',
+    area: '',
+    description: '',
+    isActive: true
+  }
+}
+
+const saveGroup = async () => {
+  if (!groupForm.value.name || !groupForm.value.area) {
+    alert('请填写分组名称和区域')
+    return
+  }
+
+  try {
+    const url = groupForm.value.id
+      ? `/api/admin/groups/${groupForm.value.id}`
+      : '/api/admin/groups'
+    const method = groupForm.value.id ? 'PUT' : 'POST'
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: groupForm.value.name,
+        area: groupForm.value.area,
+        description: groupForm.value.description,
+        isActive: groupForm.value.isActive
+      })
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      alert(groupForm.value.id ? '分组已更新' : '分组已创建')
+      closeGroupModal()
+      await loadGroups()
+    } else {
+      alert('保存失败：' + result.message)
+    }
+  } catch (error) {
+    alert('保存失败：网络错误')
+  }
+}
+
+const deleteGroup = async (group: Group) => {
+  if (!confirm(`确定要删除分组"${group.name}"吗？此操作不可撤销。`)) {
+    return
+  }
+
+  try {
+    const response = await fetch(`/api/admin/groups/${group.id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      alert('分组已删除')
+      await loadGroups()
+    } else {
+      alert('删除失败：' + result.message)
+    }
+  } catch (error) {
+    alert('删除失败：网络错误')
   }
 }
 

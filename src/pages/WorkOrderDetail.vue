@@ -48,23 +48,15 @@
               </div>
               <div class="flex justify-between items-center py-3 border-b border-gray-200">
                 <span class="text-gray-500">部门</span>
-                <span class="text-gray-800">{{ order.department }}</span>
+                <span class="text-gray-800">{{ order.department || '-' }}</span>
               </div>
               <div class="flex justify-between items-center py-3 border-b border-gray-200">
-                <span class="text-gray-500">工位</span>
-                <span class="text-gray-800">{{ order.location }}</span>
-              </div>
-              <div class="flex justify-between items-center py-3 border-b border-gray-200">
-                <span class="text-gray-500">分机</span>
+                <span class="text-gray-500">内线分机</span>
                 <span class="text-gray-800">{{ order.extension }}</span>
               </div>
-              <div class="flex justify-between items-center py-3 border-b border-gray-200">
-                <span class="text-gray-500">邮箱</span>
-                <span class="text-gray-800">{{ order.email }}</span>
-              </div>
               <div class="flex justify-between items-center py-3">
-                <span class="text-gray-500">Webex</span>
-                <span class="text-gray-800">{{ order.webexId }}</span>
+                <span class="text-gray-500">Email & Webex</span>
+                <span class="text-gray-800">{{ order.email || '-' }}</span>
               </div>
             </div>
           </div>
@@ -84,16 +76,16 @@
                 <span class="text-gray-800">{{ order.deviceType }}</span>
               </div>
               <div class="flex justify-between items-center py-3 border-b border-gray-200">
-                <span class="text-gray-500">设备位置</span>
-                <span class="text-gray-800">{{ order.deviceLocation }}</span>
-              </div>
-              <div class="flex justify-between items-center py-3 border-b border-gray-200">
                 <span class="text-gray-500">维修项目</span>
                 <span class="text-gray-800">{{ order.projectName }}</span>
               </div>
               <div class="flex justify-between items-center py-3 border-b border-gray-200">
+                <span class="text-gray-500">区域</span>
+                <span class="text-gray-800">{{ order.area === 'A' ? 'A区' : 'CK区' }}</span>
+              </div>
+              <div class="flex justify-between items-center py-3 border-b border-gray-200">
                 <span class="text-gray-500">维修类型</span>
-                <span class="text-gray-800">{{ order.repairType === 'internal' ? '内部机房维修' : '现场远程维修' }}</span>
+                <span class="text-gray-800">{{ order.repairType === 'internal' ? '资讯内部维修' : '资讯委外维修' }}</span>
               </div>
               <div class="flex justify-between items-center py-3">
                 <span class="text-gray-500">通知方式</span>
@@ -180,6 +172,14 @@
             <ExternalLink class="w-4 h-4" />
             外修申请
           </button>
+          <button v-if="order.status === 'external_pending'" @click="handleStartExternal" class="btn-primary">
+            <Play class="w-4 h-4" />
+            开始外修
+          </button>
+          <button v-if="order.status === 'external_processing'" @click="showExternalCompleteModal = true" class="btn-secondary">
+            <CheckCircle class="w-4 h-4" />
+            完成外修
+          </button>
         </div>
       </div>
 
@@ -238,6 +238,32 @@
           </div>
         </div>
       </div>
+
+      <div v-if="showExternalCompleteModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div class="card max-w-lg w-full scale-in">
+          <h3 class="text-xl font-bold text-gray-800 mb-6">完成外修</h3>
+          <div class="space-y-5">
+            <div>
+              <label class="form-label">维修记录</label>
+              <textarea v-model="externalCompleteForm.repairRecord" class="form-textarea" rows="4" placeholder="请描述维修过程..."></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">故障原因</label>
+                <input v-model="externalCompleteForm.faultReason" type="text" class="form-input" placeholder="故障原因" />
+              </div>
+              <div>
+                <label class="form-label">处理方案</label>
+                <input v-model="externalCompleteForm.solution" type="text" class="form-input" placeholder="处理方案" />
+              </div>
+            </div>
+          </div>
+          <div class="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-100">
+            <button @click="showExternalCompleteModal = false" class="btn-outline">取消</button>
+            <button @click="handleExternalComplete" class="btn-primary">确认完成</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -246,6 +272,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, User, Monitor, FileText, Wrench, History, CheckCircle, Play, Archive, ExternalLink, Home } from 'lucide-vue-next'
+import { workOrderApi } from '../api'
 
 const route = useRoute()
 const router = useRouter()
@@ -268,13 +295,20 @@ const order = ref({
   repairType: 'internal' as 'internal' | 'remote',
   notificationChannels: [] as ('extension' | 'email' | 'webex')[],
   priority: 'normal' as 'normal' | 'urgent',
-  status: 'pending' as 'pending' | 'accepted' | 'processing' | 'completed' | 'closed',
+  status: 'pending' as 'pending' | 'accepted' | 'processing' | 'external_pending' | 'external_processing' | 'completed' | 'closed',
   area: 'A',
   engineerId: '',
   engineerName: '',
   statusLog: '',
   createTime: '',
-  updateTime: ''
+  updateTime: '',
+  externalReason: '',
+  externalParts: '',
+  externalCost: 0,
+  externalCompany: '',
+  repairRecord: '',
+  faultReason: '',
+  solution: ''
 })
 
 const statusLogs = ref([
@@ -285,6 +319,8 @@ const statusLogs = ref([
 const showActionButtons = ref(true)
 const showCompleteModal = ref(false)
 const showExternalModal = ref(false)
+const showExternalCompleteModal = ref(false)
+const isLoading = ref(false)
 
 const completeForm = reactive({
   repairRecord: '',
@@ -299,33 +335,24 @@ const externalForm = reactive({
   repairCompany: ''
 })
 
-onMounted(() => {
-  order.value = {
-    id: route.params.id as string,
-    orderNo: 'WO-20240115-001',
-    applicantName: '张三',
-    department: '研发部',
-    location: 'A栋3楼301室',
-    extension: '8001',
-    email: 'zhangsan@company.com',
-    webexId: 'zhangsan',
-    assetNo: 'IT-2024-001',
-    deviceType: '笔记本电脑',
-    deviceLocation: 'A区-2楼',
-    projectId: '1',
-    projectName: '系统故障',
-    description: '电脑无法开机，按下电源键后屏幕无反应，电源指示灯闪烁。尝试过更换电源适配器，问题依然存在。',
-    repairType: 'internal',
-    notificationChannels: ['email', 'webex'],
-    priority: 'urgent',
-    status: 'pending',
-    area: 'A',
-    engineerId: '',
-    engineerName: '',
-    statusLog: '',
-    createTime: '2024-01-15 14:30:00',
-    updateTime: '2024-01-15 14:30:00'
+const externalCompleteForm = reactive({
+  repairRecord: '',
+  faultReason: '',
+  solution: ''
+})
+
+const fetchOrder = async () => {
+  try {
+    const response = await workOrderApi.detail(order.value.id)
+    order.value = { ...response.data.data }
+  } catch (error) {
+    console.error('获取工单详情失败:', error)
   }
+}
+
+onMounted(() => {
+  order.value.id = route.params.id as string
+  fetchOrder()
 })
 
 const getStatusClass = (status: string) => {
@@ -333,6 +360,8 @@ const getStatusClass = (status: string) => {
     pending: 'status-pending',
     accepted: 'status-accepted',
     processing: 'status-processing',
+    external_pending: 'status-external-pending',
+    external_processing: 'status-external-processing',
     completed: 'status-completed',
     closed: 'status-closed'
   }
@@ -344,6 +373,8 @@ const getStatusText = (status: string) => {
     pending: '待接单',
     accepted: '已接单',
     processing: '处理中',
+    external_pending: '外修待处理',
+    external_processing: '外修处理中',
     completed: '已完成',
     closed: '已结案'
   }
@@ -367,25 +398,127 @@ const goHome = () => {
   window.location.href = '/'
 }
 
-const handleAccept = () => {
-  alert('接单成功')
+const handleAccept = async () => {
+  if (isLoading.value) return
+  isLoading.value = true
+  try {
+    await workOrderApi.accept(order.value.id)
+    order.value.status = 'accepted'
+    alert('接单成功')
+  } catch (error) {
+    console.error('接单失败:', error)
+    alert('接单失败，请稍后重试')
+  } finally {
+    isLoading.value = false
+  }
 }
 
-const handleStartProcess = () => {
-  alert('开始处理')
+const handleStartProcess = async () => {
+  if (isLoading.value) return
+  isLoading.value = true
+  try {
+    await workOrderApi.startProcess(order.value.id)
+    order.value.status = 'processing'
+    alert('开始处理')
+  } catch (error) {
+    console.error('开始处理失败:', error)
+    alert('开始处理失败，请稍后重试')
+  } finally {
+    isLoading.value = false
+  }
 }
 
-const handleComplete = () => {
-  alert('完成维修')
-  showCompleteModal.value = false
+const handleComplete = async () => {
+  if (isLoading.value) return
+  isLoading.value = true
+  try {
+    await workOrderApi.complete(order.value.id, {
+      repairRecord: completeForm.repairRecord,
+      faultReason: completeForm.faultReason,
+      solution: completeForm.solution
+    })
+    order.value.status = 'completed'
+    order.value.repairRecord = completeForm.repairRecord
+    order.value.faultReason = completeForm.faultReason
+    order.value.solution = completeForm.solution
+    alert('完成维修')
+    showCompleteModal.value = false
+  } catch (error) {
+    console.error('完成维修失败:', error)
+    alert('完成维修失败，请稍后重试')
+  } finally {
+    isLoading.value = false
+  }
 }
 
-const handleClose = () => {
-  alert('结案成功')
+const handleClose = async () => {
+  if (isLoading.value) return
+  isLoading.value = true
+  try {
+    await workOrderApi.close(order.value.id)
+    order.value.status = 'closed'
+    alert('结案成功')
+  } catch (error) {
+    console.error('结案失败:', error)
+    alert('结案失败，请稍后重试')
+  } finally {
+    isLoading.value = false
+  }
 }
 
-const handleExternalRepair = () => {
-  alert('外修申请已提交')
-  showExternalModal.value = false
+const handleExternalRepair = async () => {
+  if (isLoading.value) return
+  isLoading.value = true
+  try {
+    await workOrderApi.createExternalRepair(order.value.id, {
+      reason: externalForm.reason,
+      parts: externalForm.parts,
+      estimatedCost: externalForm.estimatedCost,
+      repairCompany: externalForm.repairCompany
+    })
+    order.value.status = 'external_pending'
+    order.value.externalReason = externalForm.reason
+    order.value.externalParts = externalForm.parts
+    order.value.externalCost = externalForm.estimatedCost
+    order.value.externalCompany = externalForm.repairCompany
+    alert('外修申请已提交，请等待采购处理')
+    showExternalModal.value = false
+  } catch (error) {
+    console.error('外修申请失败:', error)
+    alert('外修申请失败，请稍后重试')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const handleStartExternal = async () => {
+  if (isLoading.value) return
+  isLoading.value = true
+  try {
+    await workOrderApi.startExternal(order.value.id)
+    await fetchOrder()
+    alert('已开始外修')
+  } catch (error) {
+    console.error('开始外修失败:', error)
+    alert('操作失败，请稍后重试')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const handleExternalComplete = async () => {
+  if (isLoading.value) return
+  isLoading.value = true
+  try {
+    await workOrderApi.completeExternalRepair(order.value.id, externalCompleteForm)
+    await fetchOrder()
+    showExternalCompleteModal.value = false
+    alert('外修已完成')
+  } catch (error) {
+    console.error('外修完成失败:', error)
+    alert('提交失败，请稍后重试')
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>

@@ -8,5 +8,10 @@
   "webexRoomId": "3c0ad2a0-9924-11f0-8c77-25981b7f2eba",
   "extensionServer": "pbx.example.com",
   "extensionPort": 5060,
-  "systemUrl": "https://repair.foxlink-cn.com:8443"
+  "systemUrl": "https://it-repair.foxlink.com.tw:8443",
+  "httpsPort": 8443,
+  "certPath": "./certs",
+  "certPassword": "22223510",
+  "certFileName": "ssl-foxlink.crt",
+  "keyFileName": ""
 }

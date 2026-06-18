@@ -42,12 +42,18 @@
             </a>
           </li>
           <li>
+            <a href="/admin/workorders" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+              <ClipboardList class="w-5 h-5" />
+              工单管理
+            </a>
+          </li>
+          <li>
             <a href="/admin/statistics" class="flex items-center gap-3 px-4 py-3 bg-darkblue text-white rounded-xl shadow-md">
               <BarChart3 class="w-5 h-5" />
               数据统计
             </a>
           </li>
-          <li>
+          <li v-if="userRole !== 'operator'">
             <a href="/admin/settings" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
               <Settings class="w-5 h-5" />
               系统设置
@@ -267,12 +273,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { Wrench, LayoutDashboard, Users, Settings, BarChart3, LogOut, Download, Ticket, CheckCircle, Clock, ExternalLink, PieChart as PieChartIcon, MapPin, Home } from 'lucide-vue-next'
+import { ref, reactive, computed } from 'vue'
+import { Wrench, LayoutDashboard, Users, Settings, BarChart3, LogOut, Download, Ticket, CheckCircle, Clock, ExternalLink, PieChart as PieChartIcon, MapPin, ClipboardList, Home } from 'lucide-vue-next'
 import { authApi } from '../api'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+
+// 获取当前用户角色，运维员(operator)隐藏系统设置
+const userRole = computed(() => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    return user.role || ''
+  } catch {
+    return ''
+  }
+})
 
 const goHome = () => {
   window.location.href = '/'

@@ -9,6 +9,11 @@
         <p class="text-gray-500 mt-2">Foxlink IT Support</p>
       </div>
 
+      <a href="/" class="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-primary-600 transition-colors mb-6">
+        <Home class="w-4 h-4" />
+        返回首页
+      </a>
+
       <form @submit.prevent="handleLogin" class="space-y-5">
         <div class="form-group">
           <label class="form-label">
@@ -116,7 +121,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
-import { User, Lock, Eye, EyeOff, Loader2, X } from 'lucide-vue-next'
+import { User, Lock, Eye, EyeOff, Loader2, X, Home } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { authApi } from '../api'
 
@@ -281,6 +286,11 @@ const handleLogin = async () => {
     })
     
     if (response.data.success) {
+      // 工程师账号不允许登录管理员入口
+      if (response.data.user.role === 'engineer') {
+        errors.password = '工程师账号请使用工程师入口登录'
+        return
+      }
       localStorage.setItem('token', response.data.token)
       localStorage.setItem('user', JSON.stringify(response.data.user))
       router.push('/admin')

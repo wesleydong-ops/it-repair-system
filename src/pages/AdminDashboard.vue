@@ -43,12 +43,18 @@
             </a>
           </li>
           <li>
+            <a href="/admin/workorders" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-primary-50 hover:text-primary-600 rounded-xl transition-all duration-300">
+              <ClipboardList class="w-5 h-5" />
+              工单管理
+            </a>
+          </li>
+          <li>
             <a href="/admin/statistics" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-primary-50 hover:text-primary-600 rounded-xl transition-all duration-300">
               <BarChart3 class="w-5 h-5" />
               数据统计
             </a>
           </li>
-          <li>
+          <li v-if="userRole !== 'operator'">
             <a href="/admin/settings" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-primary-50 hover:text-primary-600 rounded-xl transition-all duration-300">
               <Settings class="w-5 h-5" />
               系统设置
@@ -312,54 +318,115 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { LayoutDashboard, Users, Settings, BarChart3, LogOut, Ticket, CheckCircle, Clock, ExternalLink, ClipboardList, Activity, TrendingUp, FileText, Eye, Home } from 'lucide-vue-next'
-import { authApi } from '../api'
+import { authApi, statisticsApi, workOrderApi } from '../api'
 
 const router = useRouter()
+
+// 获取当前用户角色，运维员(operator)隐藏系统设置
+const userRole = computed(() => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    return user.role || ''
+  } catch {
+    return ''
+  }
+})
 
 const goHome = () => {
   window.location.href = '/'
 }
 
 const stats = ref({
-  monthlyOrders: 156,
-  completionRate: 92,
-  avgDuration: 2.3,
-  externalOrders: 8
+  monthlyOrders: 0,
+  completionRate: 0,
+  avgDuration: 0,
+  externalOrders: 0
 })
 
 const statusDistribution = ref({
-  pending: 12,
-  processing: 8,
-  completed: 15,
-  closed: 121
+  pending: 0,
+  processing: 0,
+  completed: 0,
+  closed: 0
 })
 
 const totalOrders = computed(() => {
   return statusDistribution.value.pending + statusDistribution.value.processing + statusDistribution.value.completed + statusDistribution.value.closed
 })
 
-const pendingOrders = ref([
-  { id: '1', orderNo: 'WO-20240115-001', applicantName: '张三', deviceType: '笔记本电脑' },
-  { id: '2', orderNo: 'WO-20240115-002', applicantName: '李四', deviceType: '台式电脑' },
-  { id: '3', orderNo: 'WO-20240115-003', applicantName: '王五', deviceType: '打印机' }
-])
+const pendingOrders = ref<Array<{ id: string; orderNo: string; applicantName: string; deviceType: string }>>([])
 
-const engineerRanking = ref([
-  { id: '1', name: '陈工', area: 'A', acceptedCount: 28, completionRate: 95 },
-  { id: '2', name: '李工', area: 'CK', acceptedCount: 25, completionRate: 93 },
-  { id: '3', name: '王工', area: 'A', acceptedCount: 23, completionRate: 90 },
-  { id: '4', name: '赵工', area: 'CK', acceptedCount: 21, completionRate: 88 }
-])
+const engineerRanking = ref<Array<{ id: string; name: string; area: string; acceptedCount: number; completionRate: number }>>([])
 
 const getStatusPercentage = (status: string) => {
+  if (totalOrders.value === 0) return 0
   return Math.round((statusDistribution.value[status as keyof typeof statusDistribution.value] / totalOrders.value) * 100)
+}
+
+const loadStatistics = async () => {
+  try {
+    const response = await statisticsApi.get()
+    const data = response.data.data
+    
+    stats.value.monthlyOrders = data.totalOrders
+    stats.value.completionRate = data.totalOrders > 0 ? Math.round((data.completedOrders / data.totalOrders) * 100) : 0
+    stats.value.avgDuration = data.averageDuration || 0
+    stats.value.externalOrders = data.totalOrders - data.completedOrders - data.pendingOrders
+    
+    statusDistribution.value.pending = data.pendingOrders
+    statusDistribution.value.completed = data.completedOrders
+    
+    // 计算工程师排名
+    if (data.engineerStats && data.engineerStats.length > 0) {
+      engineerRanking.value = data.engineerStats.map((stat: any) => ({
+        id: stat.engineerId,
+        name: stat.name,
+        area: stat.area || 'A',
+        acceptedCount: stat.acceptedCount,
+        completionRate: stat.acceptedCount > 0 ? Math.round((stat.completedCount / stat.acceptedCount) * 100) : 0
+      })).sort((a: any, b: any) => b.acceptedCount - a.acceptedCount).slice(0, 4)
+    }
+  } catch (error) {
+    console.error('加载统计数据失败:', error)
+  }
+}
+
+const loadPendingOrders = async () => {
+  try {
+    const response = await workOrderApi.list({ status: 'pending', page: 1, size: 3 })
+    pendingOrders.value = response.data.data || []
+  } catch (error) {
+    console.error('加载待处理工单失败:', error)
+  }
+}
+
+const loadStatusDistribution = async () => {
+  try {
+    const response = await workOrderApi.list({ page: 1, size: 1000 })
+    const orders = response.data.data || []
+    
+    statusDistribution.value = {
+      pending: orders.filter((o: any) => o.status === 'pending').length,
+      processing: orders.filter((o: any) => o.status === 'processing' || o.status === 'accepted').length,
+      completed: orders.filter((o: any) => o.status === 'completed').length,
+      closed: orders.filter((o: any) => o.status === 'closed').length
+    }
+  } catch (error) {
+    console.error('加载状态分布失败:', error)
+  }
 }
 
 const handleLogout = () => {
   authApi.logout()
   router.push('/admin/login')
 }
+
+onMounted(() => {
+  loadStatistics()
+  loadPendingOrders()
+  loadStatusDistribution()
+})
 </script>

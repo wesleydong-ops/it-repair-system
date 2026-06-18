@@ -6,18 +6,10 @@ import path from 'path'
 import https from 'https'
 import fs from 'fs'
 import nodemailer from 'nodemailer'
+import multer from 'multer'
 import { config } from './config'
 
 const app = express()
-
-const SSL_OPTIONS = {
-  key: fs.existsSync(path.join(config.certPath, 'server.key')) 
-    ? fs.readFileSync(path.join(config.certPath, 'server.key')) 
-    : null,
-  cert: fs.existsSync(path.join(config.certPath, 'server.crt')) 
-    ? fs.readFileSync(path.join(config.certPath, 'server.crt')) 
-    : null
-}
 
 app.use(cors())
 app.use(express.json())
@@ -45,6 +37,15 @@ const authenticateToken = (req: express.Request, res: express.Response, next: ex
 
 const DATA_DIR = path.join(process.cwd(), 'data')
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json')
+const CERTS_DIR = path.join(process.cwd(), 'certs')
+
+// 确保目录存在
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true })
+}
+if (!fs.existsSync(CERTS_DIR)) {
+  fs.mkdirSync(CERTS_DIR, { recursive: true })
+}
 
 const defaultSettings = {
   smtpHost: 'smtp.example.com',
@@ -56,14 +57,16 @@ const defaultSettings = {
   webexRoomId: '',
   extensionServer: 'pbx.example.com',
   extensionPort: 5060,
-  systemUrl: 'https://localhost:8443'
+  systemUrl: 'https://localhost:8443',
+  httpsPort: 8443,
+  certPath: './certs',
+  certPassword: '',
+  certFileName: '',
+  keyFileName: ''
 }
 
 const loadSettings = (): typeof defaultSettings => {
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true })
-    }
     if (fs.existsSync(SETTINGS_FILE)) {
       const data = fs.readFileSync(SETTINGS_FILE, 'utf8')
       const savedSettings = JSON.parse(data)
@@ -79,9 +82,6 @@ const loadSettings = (): typeof defaultSettings => {
 
 const saveSettings = (settings: typeof defaultSettings): void => {
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true })
-    }
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2))
     console.log('设置已保存')
   } catch (error) {
@@ -90,6 +90,17 @@ const saveSettings = (settings: typeof defaultSettings): void => {
 }
 
 const systemSettings = loadSettings()
+
+// 文件上传配置
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, CERTS_DIR)
+  },
+  filename: (_req, file, cb) => {
+    cb(null, file.originalname)
+  }
+})
+const upload = multer({ storage })
 
 const WORKORDERS_FILE = path.join(DATA_DIR, 'workorders.json')
 const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json')
@@ -217,6 +228,13 @@ interface WorkOrder {
   statusLog: string
   createTime: string
   updateTime: string
+  externalReason: string
+  externalParts: string
+  externalCost: number
+  externalCompany: string
+  repairRecord: string
+  faultReason: string
+  solution: string
 }
 
 const loadWorkorders = (): WorkOrder[] => {
@@ -246,9 +264,9 @@ const saveWorkorders = (orders: WorkOrder[]): void => {
 }
 
 const defaultWorkorders = [
-  { id: '1', orderNo: 'WO-20240115-001', applicantName: '张三', department: '研发部', location: 'A栋3楼301室', extension: '8001', email: 'zhangsan@company.com', webexId: 'zhangsan', assetNo: 'IT-2024-001', deviceType: '笔记本电脑', deviceLocation: 'A区-2楼', projectId: '1', projectName: '系统故障', description: '电脑无法开机', repairType: 'internal', notificationChannels: ['email', 'webex'], priority: 'urgent', status: 'pending', area: 'A', engineerId: '', engineerName: '', statusLog: '', createTime: '2024-01-15 14:30:00', updateTime: '2024-01-15 14:30:00' },
-  { id: '2', orderNo: 'WO-20240115-002', applicantName: '李四', department: '市场部', location: 'B栋2楼201室', extension: '8002', email: 'lisi@company.com', webexId: 'lisi', assetNo: 'IT-2024-002', deviceType: '台式电脑', deviceLocation: 'CK区-1楼', projectId: '2', projectName: '网络故障', description: '网络连接不稳定', repairType: 'remote', notificationChannels: ['extension'], priority: 'normal', status: 'accepted', area: 'CK', engineerId: '3', engineerName: '李工', statusLog: '', createTime: '2024-01-15 13:20:00', updateTime: '2024-01-15 13:30:00' },
-  { id: '3', orderNo: 'WO-20240115-003', applicantName: '王五', department: '财务部', location: 'A栋1楼101室', extension: '8003', email: 'wangwu@company.com', webexId: 'wangwu', assetNo: 'IT-2024-003', deviceType: '打印机', deviceLocation: 'A区-1楼', projectId: '3', projectName: '硬件故障', description: '打印机卡纸', repairType: 'internal', notificationChannels: ['email'], priority: 'normal', status: 'processing', area: 'A', engineerId: '2', engineerName: '陈工', statusLog: '', createTime: '2024-01-15 11:45:00', updateTime: '2024-01-15 12:00:00' }
+  { id: '1', orderNo: 'WO-20240115-001', applicantName: '张三', department: '研发部', location: 'A栋3楼301室', extension: '8001', email: 'zhangsan@company.com', webexId: 'zhangsan', assetNo: 'IT-2024-001', deviceType: '笔记本电脑', deviceLocation: 'A区-2楼', projectId: '1', projectName: '系统故障', description: '电脑无法开机', repairType: 'internal', notificationChannels: ['email', 'webex'], priority: 'urgent', status: 'pending', area: 'A', engineerId: '', engineerName: '', statusLog: '', createTime: '2024-01-15 14:30:00', updateTime: '2024-01-15 14:30:00', externalReason: '', externalParts: '', externalCost: 0, externalCompany: '', repairRecord: '', faultReason: '', solution: '' },
+  { id: '2', orderNo: 'WO-20240115-002', applicantName: '李四', department: '市场部', location: 'B栋2楼201室', extension: '8002', email: 'lisi@company.com', webexId: 'lisi', assetNo: 'IT-2024-002', deviceType: '台式电脑', deviceLocation: 'CK区-1楼', projectId: '2', projectName: '网络故障', description: '网络连接不稳定', repairType: 'remote', notificationChannels: ['extension'], priority: 'normal', status: 'accepted', area: 'CK', engineerId: '3', engineerName: '李工', statusLog: '', createTime: '2024-01-15 13:20:00', updateTime: '2024-01-15 13:30:00', externalReason: '', externalParts: '', externalCost: 0, externalCompany: '', repairRecord: '', faultReason: '', solution: '' },
+  { id: '3', orderNo: 'WO-20240115-003', applicantName: '王五', department: '财务部', location: 'A栋1楼101室', extension: '8003', email: 'wangwu@company.com', webexId: 'wangwu', assetNo: 'IT-2024-003', deviceType: '打印机', deviceLocation: 'A区-1楼', projectId: '3', projectName: '硬件故障', description: '打印机卡纸', repairType: 'internal', notificationChannels: ['email'], priority: 'normal', status: 'processing', area: 'A', engineerId: '2', engineerName: '陈工', statusLog: '', createTime: '2024-01-15 11:45:00', updateTime: '2024-01-15 12:00:00', externalReason: '', externalParts: '', externalCost: 0, externalCompany: '', repairRecord: '', faultReason: '', solution: '' }
 ]
 
 const workorders = loadWorkorders()
@@ -308,7 +326,8 @@ const defaultUsers: User[] = [
   { id: '3', username: 'li', password: bcrypt.hashSync('123456', 10), name: '李工', role: 'engineer', area: 'CK', email: 'li@foxlink.com', webexId: 'li', isActive: true, createTime: '2024-01-03 11:00:00' },
   { id: '4', username: 'wang', password: bcrypt.hashSync('123456', 10), name: '王工', role: 'engineer', area: 'A', email: 'wang@foxlink.com', webexId: 'wang', isActive: true, createTime: '2024-01-04 14:00:00' },
   { id: '5', username: 'zhao', password: bcrypt.hashSync('123456', 10), name: '赵工', role: 'engineer', area: 'CK', email: 'zhao@foxlink.com', webexId: 'zhao', isActive: false, createTime: '2024-01-05 15:00:00' },
-  { id: '6', username: 'operator', password: bcrypt.hashSync('123456', 10), name: '运维员', role: 'operator', area: '', email: 'operator@foxlink.com', webexId: 'operator', isActive: true, createTime: '2024-01-06 09:00:00' }
+  { id: '6', username: 'operator', password: bcrypt.hashSync('123456', 10), name: '运维员', role: 'operator', area: '', email: 'operator@foxlink.com', webexId: 'operator', isActive: true, createTime: '2024-01-06 09:00:00' },
+  { id: '7', username: 'purchaser', password: bcrypt.hashSync('123456', 10), name: '采购专员', role: 'purchaser', area: '', email: 'purchaser@foxlink.com', webexId: 'purchaser', isActive: true, createTime: '2024-01-07 10:00:00' }
 ]
 
 const loadUsers = (): User[] => {
@@ -363,8 +382,12 @@ app.post('/api/admin/login', async (req, res) => {
   const freshUsers = loadUsers()
   const user = freshUsers.find(u => u.username === username)
   
-  if (!user || !bcrypt.compareSync(password, user.password)) {
-    return res.status(401).json({ success: false, message: '用户名或密码错误' })
+  if (!user) {
+    return res.status(401).json({ success: false, message: '用户名不存在' })
+  }
+  
+  if (!bcrypt.compareSync(password, user.password)) {
+    return res.status(401).json({ success: false, message: '密码错误' })
   }
   
   const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, config.jwtSecret, { expiresIn: '1h' })
@@ -372,7 +395,7 @@ app.post('/api/admin/login', async (req, res) => {
   res.json({
     success: true,
     token,
-    user: { id: user.id, username: user.username, name: user.name, role: user.role }
+    user: { id: user.id, username: user.username, name: user.name, role: user.role, area: user.area }
   })
 })
 
@@ -599,7 +622,14 @@ app.post('/api/workorder/submit', async (req, res) => {
     engineerName: '',
     statusLog: '',
     createTime: new Date().toLocaleString('zh-CN'),
-    updateTime: new Date().toLocaleString('zh-CN')
+    updateTime: new Date().toLocaleString('zh-CN'),
+    externalReason: '',
+    externalParts: '',
+    externalCost: 0,
+    externalCompany: '',
+    repairRecord: '',
+    faultReason: '',
+    solution: ''
   }
   
   workorders.push(newOrder)
@@ -732,6 +762,7 @@ app.post('/api/workorder/:id/start', authenticateToken, (req, res) => {
 
 app.post('/api/workorder/:id/complete', authenticateToken, (req, res) => {
   const { id } = req.params
+  const { repairRecord, faultReason, solution } = req.body
   
   const order = workorders.find(o => o.id === id)
   
@@ -744,13 +775,16 @@ app.post('/api/workorder/:id/complete', authenticateToken, (req, res) => {
   }
   
   order.status = 'completed'
+  order.repairRecord = repairRecord
+  order.faultReason = faultReason
+  order.solution = solution
   order.updateTime = new Date().toLocaleString('zh-CN')
   saveWorkorders(workorders)
   
   res.json({ success: true, message: '维修完成' })
 })
 
-app.post('/api/workorder/:id/close', authenticateToken, (req, res) => {
+app.post('/api/workorder/:id/close', authenticateToken, async (req, res) => {
   const { id } = req.params
   
   const order = workorders.find(o => o.id === id)
@@ -767,10 +801,35 @@ app.post('/api/workorder/:id/close', authenticateToken, (req, res) => {
   order.updateTime = new Date().toLocaleString('zh-CN')
   saveWorkorders(workorders)
   
-  res.json({ success: true, message: '结案成功' })
+  if (order.notificationChannels.includes('email') && order.email) {
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #1E3A5F; border-bottom: 2px solid #6BB3D9; padding-bottom: 10px;">IT报修系统 - 工单已结案</h2>
+        <p>尊敬的 ${order.applicantName} 先生/女士：</p>
+        <p>您提交的报修工单已完成结案，以下是工单详情：</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>工单号：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${order.orderNo}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>设备类型：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${order.deviceType}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>资产编号：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${order.assetNo}</td></tr>
+          ${order.faultReason ? `<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>故障原因：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${order.faultReason}</td></tr>` : ''}
+          ${order.solution ? `<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>处理方案：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${order.solution}</td></tr>` : ''}
+          ${order.repairRecord ? `<tr><td style="padding: 8px;"><strong>维修记录：</strong></td><td style="padding: 8px;">${order.repairRecord}</td></tr>` : ''}
+        </table>
+        <p>感谢您使用IT报修系统，如有其他问题请随时提交新工单。</p>
+        <p style="color: #999; font-size: 12px;">此邮件由系统自动发送，请勿回复。</p>
+      </div>
+    `
+    try {
+      await sendEmail(order.email, `工单已结案 - ${order.orderNo}`, emailHtml)
+    } catch (error) {
+      console.error('发送结案通知邮件失败:', error)
+    }
+  }
+  
+  res.json({ success: true, message: '结案成功，已通知开单人' })
 })
 
-app.post('/api/workorder/:id/external', authenticateToken, (req, res) => {
+app.post('/api/workorder/:id/external', authenticateToken, async (req, res) => {
   const { id } = req.params
   const { reason, parts, estimatedCost, repairCompany } = req.body
   
@@ -784,7 +843,113 @@ app.post('/api/workorder/:id/external', authenticateToken, (req, res) => {
     return res.status(400).json({ success: false, message: '工单状态不允许申请外修' })
   }
   
-  res.json({ success: true, message: '外修申请已提交', data: { reason, parts, estimatedCost, repairCompany } })
+  order.status = 'external_pending'
+  order.externalReason = reason
+  order.externalParts = parts
+  order.externalCost = estimatedCost
+  order.externalCompany = repairCompany
+  order.updateTime = new Date().toLocaleString('zh-CN')
+  saveWorkorders(workorders)
+  
+  const purchaseUsers = users.filter(u => u.role === 'purchaser' && u.isActive)
+  for (const user of purchaseUsers) {
+    if (user.email) {
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #1E3A5F; border-bottom: 2px solid #6BB3D9; padding-bottom: 10px;">IT报修系统 - 外修申请通知</h2>
+          <p>尊敬的 ${user.name} 先生/女士：</p>
+          <p>有新的外修申请需要处理：</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>工单号：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${order.orderNo}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>设备类型：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${order.deviceType}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>外修原因：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${reason}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>所需配件：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${parts}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>预估费用：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${estimatedCost} 元</td></tr>
+            <tr><td style="padding: 8px;"><strong>送修单位：</strong></td><td style="padding: 8px;">${repairCompany}</td></tr>
+          </table>
+          <p>请尽快处理外修申请。</p>
+          <p style="color: #999; font-size: 12px;">此邮件由系统自动发送，请勿回复。</p>
+        </div>
+      `
+      try {
+        await sendEmail(user.email, `外修申请通知 - ${order.orderNo}`, emailHtml)
+      } catch (error) {
+        console.error('发送外修通知邮件失败:', error)
+      }
+    }
+  }
+  
+  res.json({ success: true, message: '外修申请已提交，请等待采购处理' })
+})
+
+app.post('/api/workorder/:id/external/start', authenticateToken, (req, res) => {
+  const { id } = req.params
+  
+  const order = workorders.find(o => o.id === id)
+  
+  if (!order) {
+    return res.status(404).json({ success: false, message: '工单不存在' })
+  }
+  
+  if (order.status !== 'external_pending') {
+    return res.status(400).json({ success: false, message: '工单状态不允许开始外修' })
+  }
+  
+  order.status = 'external_processing'
+  order.updateTime = new Date().toLocaleString('zh-CN')
+  saveWorkorders(workorders)
+  
+  res.json({ success: true, message: '外修处理中' })
+})
+
+// 采购员驳回外修申请
+app.post('/api/workorder/:id/external/reject', authenticateToken, (req, res) => {
+  const { id } = req.params
+  const { reason } = req.body
+  
+  const order = workorders.find(o => o.id === id)
+  
+  if (!order) {
+    return res.status(404).json({ success: false, message: '工单不存在' })
+  }
+  
+  if (order.status !== 'external_pending') {
+    return res.status(400).json({ success: false, message: '工单状态不允许驳回' })
+  }
+  
+  order.status = 'processing'
+  order.externalReason = ''
+  order.externalParts = ''
+  order.externalCost = 0
+  order.externalCompany = ''
+  order.updateTime = new Date().toLocaleString('zh-CN')
+  saveWorkorders(workorders)
+  
+  res.json({ success: true, message: '已驳回外修申请' })
+})
+
+app.post('/api/workorder/:id/external/complete', authenticateToken, (req, res) => {
+  const { id } = req.params
+  const { repairRecord, faultReason, solution } = req.body
+  
+  const order = workorders.find(o => o.id === id)
+  
+  if (!order) {
+    return res.status(404).json({ success: false, message: '工单不存在' })
+  }
+  
+  if (order.status !== 'external_processing') {
+    return res.status(400).json({ success: false, message: '工单状态不允许完成外修' })
+  }
+  
+  order.status = 'completed'
+  order.repairRecord = repairRecord
+  order.faultReason = faultReason
+  order.solution = solution
+  order.updateTime = new Date().toLocaleString('zh-CN')
+  saveWorkorders(workorders)
+  
+  res.json({ success: true, message: '外修完成' })
 })
 
 app.get('/api/admin/groups', authenticateToken, (_req, res) => {
@@ -795,7 +960,64 @@ app.get('/api/admin/groups', authenticateToken, (_req, res) => {
 app.post('/api/admin/groups', authenticateToken, (req, res) => {
   const { name, area, description } = req.body
   
-  res.json({ success: true, message: '分组创建成功', data: { id: Date.now().toString(), name, area, description, isActive: true, members: [] } })
+  if (!name || !area) {
+    return res.status(400).json({ success: false, message: '分组名称和区域不能为空' })
+  }
+  
+  const groups = loadGroups()
+  const newGroup: Group = {
+    id: Date.now().toString(),
+    name,
+    area,
+    description: description || '',
+    isActive: true,
+    members: []
+  }
+  
+  groups.push(newGroup)
+  saveGroups(groups)
+  
+  res.json({ success: true, message: '分组创建成功', data: newGroup })
+})
+
+app.put('/api/admin/groups/:id', authenticateToken, (req, res) => {
+  const { id } = req.params
+  const { name, area, description, isActive } = req.body
+  
+  const groups = loadGroups()
+  const groupIndex = groups.findIndex(g => g.id === id)
+  
+  if (groupIndex === -1) {
+    return res.status(404).json({ success: false, message: '分组不存在' })
+  }
+  
+  groups[groupIndex] = {
+    ...groups[groupIndex],
+    name: name || groups[groupIndex].name,
+    area: area || groups[groupIndex].area,
+    description: description !== undefined ? description : groups[groupIndex].description,
+    isActive: isActive !== undefined ? isActive : groups[groupIndex].isActive
+  }
+  
+  saveGroups(groups)
+  
+  res.json({ success: true, message: '分组更新成功', data: groups[groupIndex] })
+})
+
+app.delete('/api/admin/groups/:id', authenticateToken, (req, res) => {
+  const { id } = req.params
+  
+  const groups = loadGroups()
+  const groupIndex = groups.findIndex(g => g.id === id)
+  
+  if (groupIndex === -1) {
+    return res.status(404).json({ success: false, message: '分组不存在' })
+  }
+  
+  groups.splice(groupIndex, 1)
+  saveGroups(groups)
+  
+  res.json({ success: true, message: '分组删除成功' })
 })
 
 app.post('/api/admin/groups/:id/members', authenticateToken, (req, res) => {
@@ -994,13 +1216,18 @@ app.get('/api/admin/settings', authenticateToken, (_req, res) => {
       webexRoomId: systemSettings.webexRoomId,
       extensionServer: systemSettings.extensionServer,
       extensionPort: systemSettings.extensionPort,
-      systemUrl: systemSettings.systemUrl
+      systemUrl: systemSettings.systemUrl,
+      httpsPort: systemSettings.httpsPort,
+      certPath: systemSettings.certPath,
+      certPassword: systemSettings.certPassword,
+      certFileName: systemSettings.certFileName,
+      keyFileName: systemSettings.keyFileName
     }
   })
 })
 
 app.put('/api/admin/settings', authenticateToken, (req, res) => {
-  const { smtpHost, smtpPort, smtpUsername, smtpPassword, smtpSecure, webexToken, webexRoomId, extensionServer, extensionPort, systemUrl } = req.body
+  const { smtpHost, smtpPort, smtpUsername, smtpPassword, smtpSecure, webexToken, webexRoomId, extensionServer, extensionPort, systemUrl, httpsPort, certPath, certPassword } = req.body
   
   if (smtpHost !== undefined) systemSettings.smtpHost = smtpHost
   if (smtpPort !== undefined) systemSettings.smtpPort = smtpPort
@@ -1012,10 +1239,37 @@ app.put('/api/admin/settings', authenticateToken, (req, res) => {
   if (extensionServer !== undefined) systemSettings.extensionServer = extensionServer
   if (extensionPort !== undefined) systemSettings.extensionPort = extensionPort
   if (systemUrl !== undefined) systemSettings.systemUrl = systemUrl
+  if (httpsPort !== undefined) systemSettings.httpsPort = httpsPort
+  if (certPath !== undefined) systemSettings.certPath = certPath
+  if (certPassword !== undefined) systemSettings.certPassword = certPassword
   
   saveSettings(systemSettings)
   
   res.json({ success: true, message: '设置更新成功', data: systemSettings })
+})
+
+// 上传证书文件
+app.post('/api/admin/settings/upload-cert', authenticateToken, upload.single('certFile'), (req, res) => {
+  if (!req.file) {
+    return res.json({ success: false, message: '请选择证书文件' })
+  }
+  
+  systemSettings.certFileName = req.file.originalname
+  saveSettings(systemSettings)
+  
+  res.json({ success: true, message: '证书上传成功', fileName: req.file.originalname })
+})
+
+// 上传私钥文件
+app.post('/api/admin/settings/upload-key', authenticateToken, upload.single('keyFile'), (req, res) => {
+  if (!req.file) {
+    return res.json({ success: false, message: '请选择私钥文件' })
+  }
+  
+  systemSettings.keyFileName = req.file.originalname
+  saveSettings(systemSettings)
+  
+  res.json({ success: true, message: '私钥上传成功', fileName: req.file.originalname })
 })
 
 app.post('/api/admin/settings/test-email', authenticateToken, async (req, res) => {
@@ -1172,6 +1426,16 @@ function generateDefaultHomePage(httpsPort: number): string {
     </body>
     </html>
   `
+}
+
+// 读取SSL证书配置
+const SSL_OPTIONS = {
+  key: fs.existsSync(path.join(config.certPath, 'server.key')) 
+    ? fs.readFileSync(path.join(config.certPath, 'server.key')) 
+    : null,
+  cert: fs.existsSync(path.join(config.certPath, 'server.crt')) 
+    ? fs.readFileSync(path.join(config.certPath, 'server.crt')) 
+    : null
 }
 
 if (SSL_OPTIONS.key && SSL_OPTIONS.cert) {

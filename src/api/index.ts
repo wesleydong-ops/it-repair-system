@@ -72,13 +72,20 @@ export interface WorkOrder {
   repairType: 'internal' | 'remote'
   notificationChannels: ('extension' | 'email' | 'webex')[]
   priority: 'normal' | 'urgent'
-  status: 'pending' | 'accepted' | 'processing' | 'completed' | 'closed'
+  status: 'pending' | 'accepted' | 'processing' | 'external_pending' | 'external_processing' | 'completed' | 'closed'
   area: string
   engineerId?: string
   engineerName?: string
   statusLog: string
   createTime: string
   updateTime: string
+  externalReason?: string
+  externalParts?: string
+  externalCost?: number
+  externalCompany?: string
+  repairRecord?: string
+  faultReason?: string
+  solution?: string
 }
 
 export interface StatisticsResponse {
@@ -120,6 +127,9 @@ export const workOrderApi = {
   accept: (id: string) =>
     api.post(`/workorder/${id}/accept`),
   
+  startProcess: (id: string) =>
+    api.post(`/workorder/${id}/start`),
+  
   complete: (id: string, data: { repairRecord: string; faultReason: string; solution: string }) =>
     api.post(`/workorder/${id}/complete`, data),
   
@@ -127,7 +137,16 @@ export const workOrderApi = {
     api.post(`/workorder/${id}/close`),
   
   createExternalRepair: (id: string, data: { reason: string; parts: string; estimatedCost: number; repairCompany: string }) =>
-    api.post(`/workorder/${id}/external`, data)
+    api.post(`/workorder/${id}/external`, data),
+  
+  startExternal: (id: string) =>
+    api.post(`/workorder/${id}/external/start`),
+  
+  completeExternalRepair: (id: string, data: { repairRecord: string; faultReason: string; solution: string }) =>
+    api.post(`/workorder/${id}/external/complete`, data),
+  
+  rejectExternal: (id: string, reason: string) =>
+    api.post(`/workorder/${id}/external/reject`, { reason })
 }
 
 export const authApi = {

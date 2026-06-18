@@ -12,7 +12,7 @@
           </div>
           <nav class="flex items-center gap-2 sm:gap-6">
             <a href="/" class="text-gray-700 hover:text-primary-600 font-medium transition-colors flex items-center gap-2">
-              <Home class="w-4 h-4" />
+              <HomeIcon class="w-4 h-4" />
               <span>首页</span>
             </a>
             <a href="/workorders" class="text-gray-700 hover:text-primary-600 font-medium transition-colors flex items-center gap-2">
@@ -23,9 +23,17 @@
               <Plus class="w-4 h-4" />
               提交报修
             </a>
+            <a href="/engineer/login" class="btn-outline">
+              <Wrench class="w-4 h-4" />
+              工程师
+            </a>
             <a href="/admin/login" class="btn-outline">
               <User class="w-4 h-4" />
               管理员
+            </a>
+            <a href="/purchaser/login" class="btn-outline">
+              <ClipboardList class="w-4 h-4" />
+              采购员
             </a>
           </nav>
         </div>
@@ -272,7 +280,7 @@
 import { ref } from 'vue'
 import { 
   Wrench, Plus, FileText, ClipboardList, Ticket, CheckCircle, Clock, Users, 
-  BarChart3, Info, QrCode, FileEdit, Bell, Home, User, ChevronRight, ShieldCheck,
+  BarChart3, Info, QrCode, FileEdit, Bell, Home as HomeIcon, User, ChevronRight, ShieldCheck,
   Phone, Mail, MessageCircle
 } from 'lucide-vue-next'
 

@@ -20,13 +20,16 @@
       "webex"
     ],
     "priority": "urgent",
-    "status": "pending",
+    "status": "closed",
     "area": "A",
-    "engineerId": "",
-    "engineerName": "",
+    "engineerId": "1",
+    "engineerName": "管理员",
     "statusLog": "",
     "createTime": "2024-01-15 14:30:00",
-    "updateTime": "2024-01-15 14:30:00"
+    "updateTime": "2026/6/17 15:48:48",
+    "repairRecord": "ok",
+    "faultReason": "ok",
+    "solution": ""
   },
   {
     "id": "2",
@@ -112,5 +115,41 @@
     "statusLog": "",
     "createTime": "2026/5/29 16:41:47",
     "updateTime": "2026/5/29 16:41:47"
+  },
+  {
+    "id": "1781599554594",
+    "orderNo": "WO-20260616-005",
+    "applicantName": "wesley",
+    "department": "ksmis",
+    "location": "",
+    "extension": "58567",
+    "email": "ksmis@foxlink.com",
+    "webexId": "",
+    "assetNo": "sdfsdf45345634",
+    "deviceType": "台式电脑",
+    "deviceLocation": "",
+    "projectId": "3",
+    "projectName": "硬件故障",
+    "description": "dddfsdfsfasdfsfs",
+    "repairType": "internal",
+    "notificationChannels": [
+      "extension",
+      "email"
+    ],
+    "priority": "normal",
+    "status": "processing",
+    "area": "CK",
+    "engineerId": "3",
+    "engineerName": "李工",
+    "statusLog": "",
+    "createTime": "2026/6/16 16:45:54",
+    "updateTime": "2026/6/16 16:48:34",
+    "externalReason": "",
+    "externalParts": "",
+    "externalCost": 0,
+    "externalCompany": "",
+    "repairRecord": "",
+    "faultReason": "",
+    "solution": ""
   }
 ]

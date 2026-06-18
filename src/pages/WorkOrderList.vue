@@ -34,6 +34,8 @@
               <option value="pending">待接单</option>
               <option value="accepted">已接单</option>
               <option value="processing">处理中</option>
+              <option value="external_pending">外修待处理</option>
+              <option value="external_processing">外修处理中</option>
               <option value="completed">已完成</option>
               <option value="closed">已结案</option>
             </select>
@@ -55,14 +57,16 @@
             </select>
           </div>
           <div class="flex-1"></div>
-          <div class="relative w-full sm:w-auto">
-            <Search class="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+          <div class="flex gap-2 w-full sm:w-auto">
             <input
               v-model="filters.search"
               type="text"
-              class="form-input pl-12 w-full sm:w-72"
+              class="form-input w-full sm:w-72"
               placeholder="搜索工单号或申请人..."
             />
+            <button class="btn-outline px-4">
+              <Search class="w-4 h-4" />
+            </button>
           </div>
         </div>
 
@@ -242,6 +246,8 @@ const getStatusClass = (status: string) => {
     pending: 'status-pending',
     accepted: 'status-accepted',
     processing: 'status-processing',
+    external_pending: 'status-external-pending',
+    external_processing: 'status-external-processing',
     completed: 'status-completed',
     closed: 'status-closed'
   }
@@ -253,6 +259,8 @@ const getStatusText = (status: string) => {
     pending: '待接单',
     accepted: '已接单',
     processing: '处理中',
+    external_pending: '外修待处理',
+    external_processing: '外修处理中',
     completed: '已完成',
     closed: '已结案'
   }

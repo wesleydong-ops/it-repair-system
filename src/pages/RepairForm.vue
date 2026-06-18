@@ -162,8 +162,7 @@
                 >
                   <option value="">请选择区域</option>
                   <option value="A">A区</option>
-                  <option value="C">C区</option>
-                  <option value="K">K区</option>
+                  <option value="CK">CK区</option>
                 </select>
                 <p v-if="errors.area" class="text-red-500 text-sm mt-2">{{ errors.area }}</p>
               </div>
