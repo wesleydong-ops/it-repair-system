@@ -219,7 +219,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { LayoutDashboard, Users, Settings, BarChart3, LogOut, Plus, Search, ClipboardList, Home } from 'lucide-vue-next'
 import { authApi } from '../api'
 import { useRouter } from 'vue-router'
@@ -309,6 +309,7 @@ const clearDraft = () => {
 }
 
 const users = ref<User[]>([])
+const isLoading = ref(false)
 
 const getRoleText = (role: string) => {
   const texts: Record<string, string> = {
@@ -366,6 +367,7 @@ const closeModal = () => {
 }
 
 const loadUsers = async () => {
+  isLoading.value = true
   try {
     const response = await fetch('/api/admin/users', {
       headers: {
@@ -375,9 +377,13 @@ const loadUsers = async () => {
     const result = await response.json()
     if (result.success) {
       users.value = result.data
+    } else {
+      console.error('加载用户列表失败:', result.message)
     }
   } catch (error) {
     console.error('加载用户列表失败:', error)
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -400,6 +406,14 @@ const loadCurrentUser = async () => {
 onMounted(() => {
   loadUsers()
   loadCurrentUser()
+})
+
+// 监听路由变化，确保每次进入页面都重新加载数据
+watch(() => router.currentRoute.value.path, () => {
+  if (router.currentRoute.value.path === '/admin/users') {
+    loadUsers()
+    loadCurrentUser()
+  }
 })
 
 const validatePassword = (password: string): boolean => {
