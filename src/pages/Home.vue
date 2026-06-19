@@ -284,6 +284,7 @@ import {
   BarChart3, Info, FileEdit, Bell, Home as HomeIcon, User, ChevronRight, ShieldCheck,
   Phone, Mail, MessageCircle
 } from 'lucide-vue-next'
+import { getStatusClass, getStatusText } from '../utils/status'
 
 const qrCanvas = ref<HTMLCanvasElement | null>(null)
 
@@ -315,28 +316,6 @@ const recentOrders = ref([
   { id: '3', orderNo: 'WO-20240115-003', applicantName: '王五', deviceType: '打印机', status: 'processing' },
   { id: '4', orderNo: 'WO-20240115-004', applicantName: '赵六', deviceType: '显示器', status: 'completed' }
 ])
-
-const getStatusClass = (status: string) => {
-  const classes: Record<string, string> = {
-    pending: 'status-pending',
-    accepted: 'status-accepted',
-    processing: 'status-processing',
-    completed: 'status-completed',
-    closed: 'status-closed'
-  }
-  return classes[status] || 'status-pending'
-}
-
-const getStatusText = (status: string) => {
-  const texts: Record<string, string> = {
-    pending: '待接单',
-    accepted: '已接单',
-    processing: '处理中',
-    completed: '已完成',
-    closed: '已结案'
-  }
-  return texts[status] || '未知'
-}
 
 const getAreaPercentage = (area: string) => {
   const total = areaStats.value.A + areaStats.value.CK

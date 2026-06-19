@@ -269,10 +269,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, User, Monitor, FileText, Wrench, History, CheckCircle, Play, Archive, ExternalLink, Home } from 'lucide-vue-next'
 import { workOrderApi } from '../api'
+import { getStatusClass, getStatusText } from '../utils/status'
 
 const route = useRoute()
 const router = useRouter()
@@ -316,7 +317,15 @@ const statusLogs = ref([
   { status: '自动派单', time: '2024-01-15 14:30:05', description: '系统根据设备位置自动分配至A区维修组' }
 ])
 
-const showActionButtons = ref(true)
+// 只有工程师和管理员才能看到操作按钮
+const showActionButtons = computed(() => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    return user.role === 'engineer' || user.role === 'admin'
+  } catch {
+    return false
+  }
+})
 const showCompleteModal = ref(false)
 const showExternalModal = ref(false)
 const showExternalCompleteModal = ref(false)
@@ -354,32 +363,6 @@ onMounted(() => {
   order.value.id = route.params.id as string
   fetchOrder()
 })
-
-const getStatusClass = (status: string) => {
-  const classes: Record<string, string> = {
-    pending: 'status-pending',
-    accepted: 'status-accepted',
-    processing: 'status-processing',
-    external_pending: 'status-external-pending',
-    external_processing: 'status-external-processing',
-    completed: 'status-completed',
-    closed: 'status-closed'
-  }
-  return classes[status] || 'status-pending'
-}
-
-const getStatusText = (status: string) => {
-  const texts: Record<string, string> = {
-    pending: '待接单',
-    accepted: '已接单',
-    processing: '处理中',
-    external_pending: '外修待处理',
-    external_processing: '外修处理中',
-    completed: '已完成',
-    closed: '已结案'
-  }
-  return texts[status] || '未知'
-}
 
 const getNotificationText = (channels: ('extension' | 'email' | 'webex')[]) => {
   const textMap: Record<string, string> = {

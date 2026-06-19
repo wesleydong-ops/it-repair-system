@@ -108,13 +108,20 @@
       "webex"
     ],
     "priority": "normal",
-    "status": "pending",
+    "status": "closed",
     "area": "A",
-    "engineerId": "",
-    "engineerName": "",
+    "engineerId": "1781675438235",
+    "engineerName": "文敬东",
     "statusLog": "",
     "createTime": "2026/5/29 16:41:47",
-    "updateTime": "2026/5/29 16:41:47"
+    "updateTime": "2026/6/18 16:31:07",
+    "externalReason": "主板损坏",
+    "externalParts": "元件",
+    "externalCost": 100,
+    "externalCompany": "元件",
+    "repairRecord": "ok",
+    "faultReason": "更换主板",
+    "solution": "测试正常"
   },
   {
     "id": "1781599554594",

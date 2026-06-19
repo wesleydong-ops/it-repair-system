@@ -63,8 +63,9 @@
               type="text"
               class="form-input w-full sm:w-72"
               placeholder="搜索工单号或申请人..."
+              @keyup.enter="handleSearch"
             />
-            <button class="btn-outline px-4">
+            <button class="btn-outline px-4" @click="handleSearch">
               <Search class="w-4 h-4" />
             </button>
           </div>
@@ -190,9 +191,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ClipboardList, Plus, Search, Eye, ChevronLeft, ChevronRight, Home } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
+import { getStatusClass, getStatusText } from '../utils/status'
 
 const router = useRouter()
 
@@ -209,8 +211,9 @@ const filters = reactive({
 
 const currentPage = ref(1)
 const pageSize = ref(10)
-const total = ref(42)
+const total = ref(0)
 const totalPages = computed(() => Math.ceil(total.value / pageSize.value))
+const isLoading = ref(false)
 
 const visiblePages = computed(() => {
   const pages = []
@@ -232,39 +235,45 @@ const visiblePages = computed(() => {
   return pages
 })
 
-const orders = ref([
-  { id: '1', orderNo: 'WO-20240115-001', applicantName: '张三', deviceType: '笔记本电脑', area: 'A', priority: 'normal', status: 'pending', createTime: '2024-01-15 14:30:00' },
-  { id: '2', orderNo: 'WO-20240115-002', applicantName: '李四', deviceType: '台式电脑', area: 'CK', priority: 'urgent', status: 'accepted', createTime: '2024-01-15 13:20:00' },
-  { id: '3', orderNo: 'WO-20240115-003', applicantName: '王五', deviceType: '打印机', area: 'A', priority: 'normal', status: 'processing', createTime: '2024-01-15 11:45:00' },
-  { id: '4', orderNo: 'WO-20240115-004', applicantName: '赵六', deviceType: '显示器', area: 'CK', priority: 'normal', status: 'completed', createTime: '2024-01-15 10:15:00' },
-  { id: '5', orderNo: 'WO-20240114-005', applicantName: '孙七', deviceType: '网络设备', area: 'A', priority: 'urgent', status: 'closed', createTime: '2024-01-14 16:30:00' },
-  { id: '6', orderNo: 'WO-20240114-006', applicantName: '周八', deviceType: '服务器', area: 'CK', priority: 'normal', status: 'pending', createTime: '2024-01-14 15:00:00' }
-])
+const orders = ref<Array<{
+  id: string
+  orderNo: string
+  applicantName: string
+  deviceType: string
+  area: string
+  priority: string
+  status: string
+  createTime: string
+}>>([])
 
-const getStatusClass = (status: string) => {
-  const classes: Record<string, string> = {
-    pending: 'status-pending',
-    accepted: 'status-accepted',
-    processing: 'status-processing',
-    external_pending: 'status-external-pending',
-    external_processing: 'status-external-processing',
-    completed: 'status-completed',
-    closed: 'status-closed'
-  }
-  return classes[status] || 'status-pending'
-}
+// 加载工单列表
+const loadOrders = async () => {
+  isLoading.value = true
+  try {
+    const params = new URLSearchParams({
+      page: currentPage.value.toString(),
+      size: pageSize.value.toString()
+    })
+    if (filters.status) params.append('status', filters.status)
+    if (filters.area) params.append('area', filters.area)
+    if (filters.priority) params.append('priority', filters.priority)
+    if (filters.search) params.append('search', filters.search)
 
-const getStatusText = (status: string) => {
-  const texts: Record<string, string> = {
-    pending: '待接单',
-    accepted: '已接单',
-    processing: '处理中',
-    external_pending: '外修待处理',
-    external_processing: '外修处理中',
-    completed: '已完成',
-    closed: '已结案'
+    const response = await fetch(`/api/workorder/list?${params}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+    const result = await response.json()
+    if (result.success) {
+      orders.value = result.data.orders || []
+      total.value = result.data.total || 0
+    }
+  } catch (error) {
+    console.error('加载工单列表失败:', error)
+  } finally {
+    isLoading.value = false
   }
-  return texts[status] || '未知'
 }
 
 const formatDate = (dateStr: string) => {
@@ -290,4 +299,25 @@ const goToPage = (page: number) => {
 const viewOrder = (id: string) => {
   router.push(`/workorder/${id}`)
 }
+
+// 搜索处理函数
+const handleSearch = () => {
+  currentPage.value = 1
+  loadOrders()
+}
+
+// 监听筛选条件变化，重新加载数据
+watch([() => filters.status, () => filters.area, () => filters.priority], () => {
+  currentPage.value = 1
+  loadOrders()
+})
+
+// 监听分页变化
+watch([currentPage, pageSize], () => {
+  loadOrders()
+})
+
+onMounted(() => {
+  loadOrders()
+})
 </script>

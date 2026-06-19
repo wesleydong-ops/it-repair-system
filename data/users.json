@@ -6,34 +6,10 @@
     "name": "管理员",
     "role": "admin",
     "area": "",
-    "email": "admin@foxlink.com",
-    "webexId": "admin",
+    "email": "wesley_wen@foxlink.com",
+    "webexId": "wesley_wen@foxlink.com",
     "isActive": true,
     "createTime": "2024-01-01 09:00:00"
-  },
-  {
-    "id": "4",
-    "username": "wang",
-    "password": "$2a$10$6CyKmKEBXpbdl8uEjh1xkuRmtLL6Jtpj2C7DRZijGap5KLiR3YeNa",
-    "name": "朱恺峰",
-    "role": "engineer",
-    "area": "A",
-    "email": "kaifeng_zhu@foxlink.com",
-    "webexId": "kaifeng_zhu@foxlink.com",
-    "isActive": true,
-    "createTime": "2024-01-04 14:00:00"
-  },
-  {
-    "id": "5",
-    "username": "zhao",
-    "password": "$2a$10$6CyKmKEBXpbdl8uEjh1xkuRmtLL6Jtpj2C7DRZijGap5KLiR3YeNa",
-    "name": "刘三秀",
-    "role": "engineer",
-    "area": "CK",
-    "email": "sanxiu_liu@foxlink.com",
-    "webexId": "sanxiu_liu@foxlink.com",
-    "isActive": true,
-    "createTime": "2024-01-05 15:00:00"
   },
   {
     "id": "6",
@@ -54,8 +30,8 @@
     "name": "采购专员",
     "role": "purchaser",
     "area": "",
-    "email": "purchaser@foxlink.com",
-    "webexId": "purchaser",
+    "email": "candy_zhu@foxlink.com",
+    "webexId": "candy_zhu@foxlink.com",
     "isActive": true,
     "createTime": "2024-01-07 10:00:00"
   },
@@ -82,5 +58,29 @@
     "webexId": "wesley_wen@foxlink.com",
     "isActive": true,
     "createTime": "2026/6/17 13:50:38"
+  },
+  {
+    "id": "1781840203764",
+    "username": "sanxiu_liu",
+    "password": "$2a$10$ZRz23XmqEAIV2JmCb4rNXucq0j3XVkET8b11quzwGi2.Ay2TYCGXS",
+    "name": "刘三秀",
+    "role": "engineer",
+    "area": "CK",
+    "email": "sanxiu_liu@foxlink.com",
+    "webexId": "sanxiu_liu@foxlink.com",
+    "isActive": true,
+    "createTime": "2026/6/19 11:36:43"
+  },
+  {
+    "id": "1781840300647",
+    "username": "canaan_hu",
+    "password": "$2a$10$I1zamixxAyyFW7zq1968iueV4V2ZdvgnM7juH/C20dfLIdT//xujW",
+    "name": "胡铭锐",
+    "role": "engineer",
+    "area": "A",
+    "email": "canaan_hu@foxlink.com",
+    "webexId": "canaan_hu@foxlink.com",
+    "isActive": true,
+    "createTime": "2026/6/19 11:38:20"
   }
 ]

@@ -1,71 +1,6 @@
 <template>
   <div class="min-h-screen bg-gray-100">
-    <aside class="fixed left-0 top-0 h-screen w-64 bg-white shadow-lg">
-      <div class="p-4 border-b">
-        <button @click="goHome" class="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition-colors w-full">
-          <Home class="w-4 h-4" />
-          返回首页
-        </button>
-      </div>
-      <div class="p-6 border-b">
-        <div class="flex items-center gap-3">
-          <img src="/logo.png" alt="FoxLink" class="w-16 h-6 object-contain drop-shadow-md" />
-          <span class="font-bold text-gray-800">IT报修系统</span>
-        </div>
-      </div>
-      <nav class="p-4">
-        <ul class="space-y-2">
-          <li>
-            <a href="/admin" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <LayoutDashboard class="w-5 h-5" />
-              仪表盘
-            </a>
-          </li>
-          <li>
-            <a href="/admin/users" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Users class="w-5 h-5" />
-              用户管理
-            </a>
-          </li>
-          <li>
-            <a href="/admin/groups" class="flex items-center gap-3 px-4 py-3 bg-darkblue text-white rounded-xl shadow-md">
-              <Users class="w-5 h-5" />
-              工程师分组
-            </a>
-          </li>
-          <li>
-            <a href="/admin/projects" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Settings class="w-5 h-5" />
-              维修项目
-            </a>
-          </li>
-          <li>
-            <a href="/admin/workorders" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <ClipboardList class="w-5 h-5" />
-              工单管理
-            </a>
-          </li>
-          <li>
-            <a href="/admin/statistics" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <BarChart3 class="w-5 h-5" />
-              数据统计
-            </a>
-          </li>
-          <li v-if="userRole !== 'operator'">
-            <a href="/admin/settings" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Settings class="w-5 h-5" />
-              系统设置
-            </a>
-          </li>
-        </ul>
-      </nav>
-      <div class="absolute bottom-0 left-0 right-0 p-4 border-t">
-        <button @click="handleLogout" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors w-full">
-          <LogOut class="w-5 h-5" />
-          退出登录
-        </button>
-      </div>
-    </aside>
+    <AdminSidebar activePath="/admin/groups" />
 
     <main class="ml-64 p-8">
       <header class="mb-8">
@@ -179,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { LayoutDashboard, Users, Settings, BarChart3, LogOut, User, Plus, X, ClipboardList, Home } from 'lucide-vue-next'
 import { authApi } from '../api'
 import { useRouter } from 'vue-router'
@@ -304,8 +239,10 @@ const loadEngineers = async () => {
   }
 }
 
-loadGroups()
-loadEngineers()
+onMounted(() => {
+  loadGroups()
+  loadEngineers()
+})
 
 const availableEngineers = computed(() => {
   if (!selectedGroup.value) return []
@@ -356,6 +293,7 @@ const addMember = async () => {
         selectedGroup.value.members.push(engineer)
         alert(`已将${engineer.name}添加到${selectedGroup.value.name}`)
         clearDraft()
+        closeMemberModal()
       } else {
         alert('添加失败：' + result.message)
       }
@@ -363,7 +301,6 @@ const addMember = async () => {
       alert('添加失败：网络错误')
     }
   }
-  closeMemberModal()
 }
 
 const removeMember = async (groupId: string, memberId: string) => {

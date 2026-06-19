@@ -1,74 +1,6 @@
 <template>
   <div class="min-h-screen bg-gradient-to-br from-primary-50 via-secondary-50 to-accent-50">
-    <aside class="fixed left-0 top-0 h-screen w-64 bg-white shadow-lg z-50">
-      <div class="p-4 border-b border-gray-100">
-        <button @click="goHome" class="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition-colors w-full">
-          <Home class="w-4 h-4" />
-          返回首页
-        </button>
-      </div>
-      <div class="p-6 border-b border-gray-100">
-        <div class="flex items-center gap-3">
-          <img src="/logo.png" alt="FoxLink" class="w-16 h-6 object-contain drop-shadow-md" />
-          <div>
-            <span class="block font-bold text-darkblue text-lg">IT报修系统</span>
-            <span class="block text-xs text-gray-500">Foxlink Admin</span>
-          </div>
-        </div>
-      </div>
-      <nav class="p-4">
-        <ul class="space-y-2">
-          <li>
-            <a href="/admin" class="flex items-center gap-3 px-4 py-3 bg-darkblue text-white rounded-xl shadow-md">
-              <LayoutDashboard class="w-5 h-5" />
-              仪表盘
-            </a>
-          </li>
-          <li>
-            <a href="/admin/users" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-primary-50 hover:text-primary-600 rounded-xl transition-all duration-300">
-              <Users class="w-5 h-5" />
-              用户管理
-            </a>
-          </li>
-          <li>
-            <a href="/admin/groups" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-primary-50 hover:text-primary-600 rounded-xl transition-all duration-300">
-              <Users class="w-5 h-5" />
-              工程师分组
-            </a>
-          </li>
-          <li>
-            <a href="/admin/projects" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-primary-50 hover:text-primary-600 rounded-xl transition-all duration-300">
-              <Settings class="w-5 h-5" />
-              维修项目
-            </a>
-          </li>
-          <li>
-            <a href="/admin/workorders" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-primary-50 hover:text-primary-600 rounded-xl transition-all duration-300">
-              <ClipboardList class="w-5 h-5" />
-              工单管理
-            </a>
-          </li>
-          <li>
-            <a href="/admin/statistics" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-primary-50 hover:text-primary-600 rounded-xl transition-all duration-300">
-              <BarChart3 class="w-5 h-5" />
-              数据统计
-            </a>
-          </li>
-          <li v-if="userRole !== 'operator'">
-            <a href="/admin/settings" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-primary-50 hover:text-primary-600 rounded-xl transition-all duration-300">
-              <Settings class="w-5 h-5" />
-              系统设置
-            </a>
-          </li>
-        </ul>
-      </nav>
-      <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100">
-        <button @click="handleLogout" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-red-50 hover:text-red-500 rounded-xl transition-all duration-300 w-full">
-          <LogOut class="w-5 h-5" />
-          退出登录
-        </button>
-      </div>
-    </aside>
+    <AdminSidebar activePath="/admin" />
 
     <main class="ml-64 p-8">
       <header class="mb-8 fade-in">
@@ -319,25 +251,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { Ticket, CheckCircle, Clock, ExternalLink, Activity, TrendingUp, Eye } from 'lucide-vue-next'
+import { statisticsApi, workOrderApi, authApi } from '../api'
 import { useRouter } from 'vue-router'
-import { LayoutDashboard, Users, Settings, BarChart3, LogOut, Ticket, CheckCircle, Clock, ExternalLink, ClipboardList, Activity, TrendingUp, FileText, Eye, Home } from 'lucide-vue-next'
-import { authApi, statisticsApi, workOrderApi } from '../api'
+import AdminSidebar from '../components/AdminSidebar.vue'
 
 const router = useRouter()
-
-// 获取当前用户角色，运维员(operator)隐藏系统设置
-const userRole = computed(() => {
-  try {
-    const user = JSON.parse(localStorage.getItem('user') || '{}')
-    return user.role || ''
-  } catch {
-    return ''
-  }
-})
-
-const goHome = () => {
-  window.location.href = '/'
-}
 
 const stats = ref({
   monthlyOrders: 0,
@@ -349,12 +268,16 @@ const stats = ref({
 const statusDistribution = ref({
   pending: 0,
   processing: 0,
+  external_pending: 0,
+  external_processing: 0,
   completed: 0,
   closed: 0
 })
 
 const totalOrders = computed(() => {
-  return statusDistribution.value.pending + statusDistribution.value.processing + statusDistribution.value.completed + statusDistribution.value.closed
+  return statusDistribution.value.pending + statusDistribution.value.processing + 
+    statusDistribution.value.external_pending + statusDistribution.value.external_processing + 
+    statusDistribution.value.completed + statusDistribution.value.closed
 })
 
 const pendingOrders = ref<Array<{ id: string; orderNo: string; applicantName: string; deviceType: string }>>([])
@@ -411,6 +334,8 @@ const loadStatusDistribution = async () => {
     statusDistribution.value = {
       pending: orders.filter((o: any) => o.status === 'pending').length,
       processing: orders.filter((o: any) => o.status === 'processing' || o.status === 'accepted').length,
+      external_pending: orders.filter((o: any) => o.status === 'external_pending').length,
+      external_processing: orders.filter((o: any) => o.status === 'external_processing').length,
       completed: orders.filter((o: any) => o.status === 'completed').length,
       closed: orders.filter((o: any) => o.status === 'closed').length
     }

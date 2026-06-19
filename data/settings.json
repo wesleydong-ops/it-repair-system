@@ -11,7 +11,8 @@
   "systemUrl": "https://it-repair.foxlink.com.tw:8443",
   "httpsPort": 8443,
   "certPath": "./certs",
-  "certPassword": "22223510",
-  "certFileName": "ssl-foxlink.crt",
-  "keyFileName": ""
+  "certPassword": "",
+  "certFileName": "cert.pem",
+  "chainFileName": "chain.pem",
+  "keyFileName": "privkey.pem"
 }

@@ -291,6 +291,11 @@ const handleLogin = async () => {
         errors.password = '工程师账号请使用工程师入口登录'
         return
       }
+      // 采购员账号不允许登录管理员入口
+      if (response.data.user.role === 'purchaser') {
+        errors.password = '采购员账号请使用采购员入口登录'
+        return
+      }
       localStorage.setItem('token', response.data.token)
       localStorage.setItem('user', JSON.stringify(response.data.user))
       router.push('/admin')

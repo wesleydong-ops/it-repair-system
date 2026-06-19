@@ -1,71 +1,6 @@
 <template>
   <div class="min-h-screen bg-gray-100">
-    <aside class="fixed left-0 top-0 h-screen w-64 bg-white shadow-lg">
-      <div class="p-4 border-b">
-        <button @click="goHome" class="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition-colors w-full">
-          <Home class="w-4 h-4" />
-          返回首页
-        </button>
-      </div>
-      <div class="p-6 border-b">
-        <div class="flex items-center gap-3">
-          <img src="/logo.png" alt="FoxLink" class="w-16 h-6 object-contain drop-shadow-md" />
-          <span class="font-bold text-gray-800">IT报修系统</span>
-        </div>
-      </div>
-      <nav class="p-4">
-        <ul class="space-y-2">
-          <li>
-            <a href="/admin" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <LayoutDashboard class="w-5 h-5" />
-              仪表盘
-            </a>
-          </li>
-          <li>
-            <a href="/admin/users" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Users class="w-5 h-5" />
-              用户管理
-            </a>
-          </li>
-          <li>
-            <a href="/admin/groups" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Users class="w-5 h-5" />
-              工程师分组
-            </a>
-          </li>
-          <li>
-            <a href="/admin/projects" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Settings class="w-5 h-5" />
-              维修项目
-            </a>
-          </li>
-          <li>
-            <a href="/admin/workorders" class="flex items-center gap-3 px-4 py-3 bg-darkblue text-white rounded-xl shadow-md">
-              <ClipboardList class="w-5 h-5" />
-              工单管理
-            </a>
-          </li>
-          <li>
-            <a href="/admin/statistics" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <BarChart3 class="w-5 h-5" />
-              数据统计
-            </a>
-          </li>
-          <li v-if="userRole !== 'operator'">
-            <a href="/admin/settings" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Settings class="w-5 h-5" />
-              系统设置
-            </a>
-          </li>
-        </ul>
-      </nav>
-      <div class="absolute bottom-0 left-0 right-0 p-4 border-t">
-        <button @click="handleLogout" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors w-full">
-          <LogOut class="w-5 h-5" />
-          退出登录
-        </button>
-      </div>
-    </aside>
+    <AdminSidebar activePath="/admin/workorders" />
 
     <main class="ml-64 p-8">
       <header class="mb-8">
@@ -121,8 +56,9 @@
               type="text"
               class="form-input w-64"
               placeholder="搜索工单号、申请人..."
+              @keyup.enter="handleSearch"
             />
-            <button class="btn-outline px-4">
+            <button class="btn-outline px-4" @click="handleSearch">
               <Search class="w-4 h-4" />
             </button>
           </div>
@@ -145,7 +81,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="order in filteredOrders" :key="order.id" class="border-b hover:bg-gray-50 transition-colors">
+              <tr v-for="order in orders" :key="order.id" class="border-b hover:bg-gray-50 transition-colors">
                 <td class="px-4 py-3 font-medium text-primary-600">{{ order.orderNo }}</td>
                 <td class="px-4 py-3">{{ order.applicantName }}</td>
                 <td class="px-4 py-3">{{ order.deviceType }}</td>
@@ -178,9 +114,32 @@
           </table>
         </div>
 
-        <div v-if="filteredOrders.length === 0" class="text-center py-12 text-gray-500">
+        <div v-if="orders.length === 0" class="text-center py-12 text-gray-500">
           <ClipboardList class="w-16 h-16 mx-auto mb-4 text-gray-300" />
           <p>暂无工单数据</p>
+        </div>
+
+        <!-- 分页组件 -->
+        <div v-if="total > 0" class="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+          <div class="text-sm text-gray-600">
+            共 {{ total }} 条记录，第 {{ currentPage }} / {{ totalPages }} 页
+          </div>
+          <div class="flex gap-2">
+            <button
+              @click="currentPage--"
+              :disabled="currentPage === 1"
+              class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              上一页
+            </button>
+            <button
+              @click="currentPage++"
+              :disabled="currentPage >= totalPages"
+              class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              下一页
+            </button>
+          </div>
         </div>
       </div>
     </main>
@@ -188,10 +147,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { LayoutDashboard, Users, Settings, BarChart3, LogOut, Home, ClipboardList, Search, Download } from 'lucide-vue-next'
 import { authApi, workOrderApi } from '../api'
+import { getStatusClass, getStatusText } from '../utils/status'
 
 const router = useRouter()
 
@@ -223,6 +183,10 @@ interface WorkOrder {
 }
 
 const orders = ref<WorkOrder[]>([])
+const total = ref(0)
+const currentPage = ref(1)
+const pageSize = ref(10)
+const isLoading = ref(false)
 
 const filters = ref({
   status: '',
@@ -231,56 +195,55 @@ const filters = ref({
   search: ''
 })
 
-const filteredOrders = computed(() => {
-  return orders.value.filter(order => {
-    if (filters.value.status && order.status !== filters.value.status) return false
-    if (filters.value.area && order.area !== filters.value.area) return false
-    if (filters.value.priority && order.priority !== filters.value.priority) return false
-    if (filters.value.search) {
-      const search = filters.value.search.toLowerCase()
-      return (
-        order.orderNo.toLowerCase().includes(search) ||
-        order.applicantName.toLowerCase().includes(search)
-      )
-    }
-    return true
-  })
-})
-
-const getStatusClass = (status: string) => {
-  const classes: Record<string, string> = {
-    pending: 'status-pending',
-    accepted: 'status-accepted',
-    processing: 'status-processing',
-    external_pending: 'status-external-pending',
-    external_processing: 'status-external-processing',
-    completed: 'status-completed',
-    closed: 'status-closed'
-  }
-  return classes[status] || 'status-pending'
-}
-
-const getStatusText = (status: string) => {
-  const texts: Record<string, string> = {
-    pending: '待接单',
-    accepted: '已接单',
-    processing: '处理中',
-    external_pending: '外修待处理',
-    external_processing: '外修处理中',
-    completed: '已完成',
-    closed: '已结案'
-  }
-  return texts[status] || '未知'
-}
-
+// 加载工单列表（后端分页筛选）
 const loadOrders = async () => {
+  isLoading.value = true
   try {
-    const response = await workOrderApi.list()
-    orders.value = response.data.data
+    const params = new URLSearchParams({
+      page: currentPage.value.toString(),
+      size: pageSize.value.toString()
+    })
+    if (filters.value.status) params.append('status', filters.value.status)
+    if (filters.value.area) params.append('area', filters.value.area)
+    if (filters.value.priority) params.append('priority', filters.value.priority)
+    if (filters.value.search) params.append('search', filters.value.search)
+
+    const response = await fetch(`/api/workorder/list?${params}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+    const result = await response.json()
+    if (result.success) {
+      orders.value = result.data
+      total.value = result.total
+    }
   } catch (error) {
     console.error('加载工单列表失败:', error)
+  } finally {
+    isLoading.value = false
   }
 }
+
+// 搜索处理
+const handleSearch = () => {
+  currentPage.value = 1
+  loadOrders()
+}
+
+// 监听筛选条件变化
+watch([() => filters.value.status, () => filters.value.area, () => filters.value.priority], () => {
+  currentPage.value = 1
+  loadOrders()
+})
+
+// 监听分页变化
+watch([currentPage, pageSize], () => {
+  loadOrders()
+})
+
+// 计算总页数
+const totalPages = computed(() => Math.ceil(total.value / pageSize.value))
 
 const viewOrder = (id: string) => {
   router.push(`/workorder/${id}`)
