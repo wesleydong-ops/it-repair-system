@@ -8,6 +8,9 @@ export interface ServerConfig {
   dataPath: string
   jwtSecret: string
   nodeEnv: string
+  certFileName?: string
+  chainFileName?: string
+  keyFileName?: string
 }
 
 const getConfig = (): ServerConfig => {
@@ -19,7 +22,9 @@ const getConfig = (): ServerConfig => {
     staticPath: process.env.STATIC_PATH || path.join(__dirname, '../dist'),
     certPath: process.env.CERT_PATH || path.join(__dirname, '../certs'),
     dataPath: process.env.DATA_PATH || path.join(__dirname, '../data'),
-    jwtSecret: process.env.JWT_SECRET || 'your-secret-key-here',
+    jwtSecret: process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' 
+      ? (() => { throw new Error('生产环境必须设置 JWT_SECRET 环境变量') })() 
+      : 'dev-only-secret-key'),
     nodeEnv
   }
 }

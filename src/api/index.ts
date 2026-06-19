@@ -20,7 +20,16 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
-      window.location.href = '/admin/login'
+      const user = JSON.parse(localStorage.getItem('user') || '{}')
+      const role = user.role
+      localStorage.removeItem('user')
+      if (role === 'engineer') {
+        window.location.href = '/engineer/login'
+      } else if (role === 'purchaser') {
+        window.location.href = '/purchaser/login'
+      } else {
+        window.location.href = '/admin/login'
+      }
     }
     return Promise.reject(error)
   }
@@ -142,7 +151,7 @@ export const workOrderApi = {
   startExternal: (id: string) =>
     api.post(`/workorder/${id}/external/start`),
   
-  completeExternalRepair: (id: string, data: { repairRecord: string; faultReason: string; solution: string }) =>
+  completeExternalRepair: (id: string, data: { repairRecord: string; faultReason: string; solution: string; actualCost?: number }) =>
     api.post(`/workorder/${id}/external/complete`, data),
   
   rejectExternal: (id: string, reason: string) =>
@@ -226,6 +235,17 @@ export interface SettingsData {
   extensionServer: string
   extensionPort: number
   systemUrl: string
+  httpsPort?: number
+  certPath?: string
+  certPassword?: string
+  certFileName?: string
+  chainFileName?: string
+  keyFileName?: string
+  notifications?: {
+    orderSubmit: boolean
+    orderAccept: boolean
+    orderComplete: boolean
+  }
 }
 
 export const adminApi = {

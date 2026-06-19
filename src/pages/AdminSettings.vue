@@ -133,7 +133,7 @@
           </h3>
           <div class="space-y-4">
             <div>
-              <label class="form-label">证书文件 (CRT/PEM)</label>
+              <label class="form-label">服务器证书 (cert.pem)</label>
               <div class="flex gap-2">
                 <input v-model="settings.certFileName" type="text" class="form-input flex-1" readonly placeholder="未上传证书" />
                 <label class="btn-outline cursor-pointer">
@@ -142,10 +142,22 @@
                   <input type="file" accept=".crt,.pem,.cer,.cert" class="hidden" @change="handleCertUpload" />
                 </label>
               </div>
-              <p class="text-gray-400 text-sm mt-1">支持 .crt, .pem, .cer, .cert 格式</p>
+              <p class="text-gray-400 text-sm mt-1">服务器证书文件，如 cert.pem</p>
             </div>
             <div>
-              <label class="form-label">私钥文件 (KEY)</label>
+              <label class="form-label">中间证书链 (chain.pem)</label>
+              <div class="flex gap-2">
+                <input v-model="settings.chainFileName" type="text" class="form-input flex-1" readonly placeholder="未上传证书链" />
+                <label class="btn-outline cursor-pointer">
+                  <Upload class="w-4 h-4 inline mr-1" />
+                  上传
+                  <input type="file" accept=".crt,.pem,.cer,.cert" class="hidden" @change="handleChainUpload" />
+                </label>
+              </div>
+              <p class="text-gray-400 text-sm mt-1">中间CA证书链文件，如 chain.pem</p>
+            </div>
+            <div>
+              <label class="form-label">私钥文件 (privkey.pem)</label>
               <div class="flex gap-2">
                 <input v-model="settings.keyFileName" type="text" class="form-input flex-1" readonly placeholder="未上传私钥" />
                 <label class="btn-outline cursor-pointer">
@@ -154,7 +166,7 @@
                   <input type="file" accept=".key,.pem" class="hidden" @change="handleKeyUpload" />
                 </label>
               </div>
-              <p class="text-gray-400 text-sm mt-1">支持 .key, .pem 格式</p>
+              <p class="text-gray-400 text-sm mt-1">私钥文件，如 privkey.pem</p>
             </div>
             <div>
               <label class="form-label">私钥密码 (Key Password)</label>
@@ -309,6 +321,7 @@ const settings = reactive({
   httpsPort: 443,
   certPath: './certs',
   certFileName: '',
+  chainFileName: '',
   keyFileName: '',
   certPassword: '',
   notifications: {
@@ -384,6 +397,38 @@ const handleKeyUpload = async (event: Event) => {
   }
 }
 
+const handleChainUpload = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  isUploading.value = true
+  try {
+    const formData = new FormData()
+    formData.append('chainFile', file)
+
+    const response = await fetch('/api/admin/settings/upload-chain', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: formData
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      settings.chainFileName = file.name
+      alert('证书链上传成功')
+    } else {
+      alert('证书链上传失败：' + result.message)
+    }
+  } catch (error) {
+    alert('证书链上传失败：网络错误')
+  } finally {
+    isUploading.value = false
+  }
+}
+
 const testHttps = async () => {
   const baseUrl = settings.systemUrl.replace(/\/$/, '')
   try {
@@ -404,7 +449,9 @@ const SETTINGS_CACHE_KEY = 'admin_settings_draft'
 
 const saveDraft = () => {
   try {
-    sessionStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(settings))
+    // 排除敏感字段（密码）
+    const { smtpPassword, certPassword, ...safeSettings } = settings
+    sessionStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(safeSettings))
   } catch (error) {
     console.error('保存草稿失败')
   }
@@ -477,7 +524,10 @@ const saveSettings = async () => {
       systemUrl: settings.systemUrl,
       httpsPort: settings.httpsPort,
       certPath: settings.certPath,
-      certPassword: settings.certPassword
+      certPassword: settings.certPassword,
+      certFileName: settings.certFileName,
+      chainFileName: settings.chainFileName,
+      keyFileName: settings.keyFileName
     }
     const response = await adminApi.updateSettings(saveData)
     if (response.data.success) {
@@ -493,27 +543,35 @@ const saveSettings = async () => {
 
 const loadSettings = async () => {
   try {
-    if (!restoreDraft()) {
-      const response = await adminApi.getSettings()
-      if (response.data.success) {
-        const data = response.data.data
-        settings.smtpHost = data.smtpHost || settings.smtpHost
-        settings.smtpPort = data.smtpPort || settings.smtpPort
-        settings.smtpUsername = data.smtpUsername || settings.smtpUsername
-        settings.smtpPassword = data.smtpPassword || settings.smtpPassword
-        settings.smtpSecure = data.smtpSecure || settings.smtpSecure
-        settings.webexToken = data.webexToken || settings.webexToken
-        settings.webexRoomId = data.webexRoomId || settings.webexRoomId
-        settings.systemUrl = data.systemUrl || settings.systemUrl
-        settings.httpsPort = data.httpsPort || settings.httpsPort
-        settings.certPath = data.certPath || settings.certPath
-        settings.certPassword = data.certPassword || ''
-        settings.certFileName = data.certFileName || ''
-        settings.keyFileName = data.keyFileName || ''
+    const response = await adminApi.getSettings()
+    if (response.data.success) {
+      const data = response.data.data
+      settings.smtpHost = data.smtpHost || settings.smtpHost
+      settings.smtpPort = data.smtpPort || settings.smtpPort
+      settings.smtpUsername = data.smtpUsername || settings.smtpUsername
+      settings.smtpPassword = data.smtpPassword || settings.smtpPassword
+      settings.smtpSecure = data.smtpSecure || settings.smtpSecure
+      settings.webexToken = data.webexToken || settings.webexToken
+      settings.webexRoomId = data.webexRoomId || settings.webexRoomId
+      settings.systemUrl = data.systemUrl || settings.systemUrl
+      settings.httpsPort = data.httpsPort || settings.httpsPort
+      settings.certPath = data.certPath || settings.certPath
+      settings.certPassword = data.certPassword || ''
+      settings.certFileName = data.certFileName || ''
+      settings.chainFileName = data.chainFileName || ''
+      settings.keyFileName = data.keyFileName || ''
+      // 通知设置从服务器加载
+      if (data.notifications) {
+        settings.notifications.orderSubmit = data.notifications.orderSubmit ?? true
+        settings.notifications.orderAccept = data.notifications.orderAccept ?? true
+        settings.notifications.orderComplete = data.notifications.orderComplete ?? true
       }
     }
   } catch (error) {
-    console.log('加载设置失败')
+    // API 失败时才使用草稿
+    if (!restoreDraft()) {
+      console.log('加载设置失败')
+    }
   }
 }
 

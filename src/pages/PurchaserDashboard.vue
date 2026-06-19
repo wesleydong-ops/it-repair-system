@@ -244,7 +244,12 @@ const handleLogout = () => {
 }
 
 onMounted(() => {
-  const user = JSON.parse(localStorage.getItem('user') || '{}')
+  let user = {}
+  try {
+    user = JSON.parse(localStorage.getItem('user') || '{}')
+  } catch {
+    user = {}
+  }
   if (!user.id || user.role !== 'purchaser') {
     router.push('/purchaser/login')
     return

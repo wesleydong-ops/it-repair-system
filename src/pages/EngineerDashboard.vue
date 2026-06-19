@@ -202,14 +202,6 @@
               <label class="block text-sm font-medium mb-2">外修原因</label>
               <textarea v-model="externalForm.reason" class="form-textarea" rows="3" placeholder="请输入外修原因"></textarea>
             </div>
-            <div>
-              <label class="block text-sm font-medium mb-2">外修单位</label>
-              <input v-model="externalForm.externalUnit" type="text" class="form-input" placeholder="请输入外修单位" />
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-2">预估费用</label>
-              <input v-model="externalForm.estimatedCost" type="number" class="form-input" placeholder="请输入预估费用" />
-            </div>
           </div>
           <div class="flex justify-end gap-3 mt-6">
             <button @click="externalModalVisible = false" class="btn-sm-outline">取消</button>
@@ -256,7 +248,8 @@ import {
   User, LogOut, ClipboardList, Wrench, CheckCircle, AlertCircle, Clock 
 } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
-import { workOrderApi } from '../api'
+import { workOrderApi, authApi } from '../api'
+import { getStatusClass, getStatusText } from '../utils/status'
 
 const router = useRouter()
 
@@ -273,8 +266,15 @@ interface WorkOrder {
   updateTime: string
 }
 
-const user = ref(JSON.parse(localStorage.getItem('user') || '{}'))
+let initialUser = {}
+try {
+  initialUser = JSON.parse(localStorage.getItem('user') || '{}')
+} catch {
+  initialUser = {}
+}
+const user = ref(initialUser)
 const orders = ref<WorkOrder[]>([])
+const isAccepting = ref(false) // 防止重复抢单
 
 // 模态框状态
 const completeModalVisible = ref(false)
@@ -290,9 +290,7 @@ const completeForm = reactive({
 })
 
 const externalForm = reactive({
-  reason: '',
-  externalUnit: '',
-  estimatedCost: 0
+  reason: ''
 })
 
 const externalCompleteForm = reactive({
@@ -303,7 +301,7 @@ const externalCompleteForm = reactive({
 })
 
 const pendingOrders = computed(() => {
-  return orders.value.filter(o => o.status === 'pending' && o.area === user.value.area)
+  return orders.value.filter(o => o.status === 'pending')
 })
 
 const myOrders = computed(() => {
@@ -334,32 +332,6 @@ const getPriorityText = (priority: string) => {
   return texts[priority] || '中'
 }
 
-const getStatusClass = (status: string) => {
-  const classes: Record<string, string> = {
-    pending: 'status-pending',
-    accepted: 'status-accepted',
-    processing: 'status-processing',
-    completed: 'status-completed',
-    closed: 'status-closed',
-    external_pending: 'status-external-pending',
-    external_processing: 'status-external-processing'
-  }
-  return classes[status] || 'status-pending'
-}
-
-const getStatusText = (status: string) => {
-  const texts: Record<string, string> = {
-    pending: '待接单',
-    accepted: '已接单',
-    processing: '处理中',
-    completed: '已完成',
-    closed: '已结案',
-    external_pending: '外修待处理',
-    external_processing: '外修处理中'
-  }
-  return texts[status] || '未知'
-}
-
 const fetchOrders = async () => {
   try {
     const response = await workOrderApi.list()
@@ -370,12 +342,16 @@ const fetchOrders = async () => {
 }
 
 const handleAcceptOrder = async (order: WorkOrder) => {
+  if (isAccepting.value) return // 防止重复点击
+  isAccepting.value = true
   try {
     await workOrderApi.accept(order.id)
     await fetchOrders()
     alert('抢单成功')
   } catch (error) {
     alert('抢单失败')
+  } finally {
+    isAccepting.value = false
   }
 }
 
@@ -421,22 +397,21 @@ const handleComplete = async () => {
 const showExternalModal = (order: WorkOrder) => {
   currentOrder.value = order
   externalForm.reason = ''
-  externalForm.externalUnit = ''
-  externalForm.estimatedCost = 0
   externalModalVisible.value = true
 }
 
 const handleExternal = async () => {
   if (!currentOrder.value) return
-  if (!externalForm.reason || !externalForm.externalUnit || externalForm.estimatedCost <= 0) {
-    alert('请填写完整信息')
+  if (!externalForm.reason) {
+    alert('请填写外修原因')
     return
   }
   try {
-    await workOrderApi.externalRepair(currentOrder.value.id, {
+    await workOrderApi.createExternalRepair(currentOrder.value.id, {
       reason: externalForm.reason,
-      externalUnit: externalForm.externalUnit,
-      estimatedCost: externalForm.estimatedCost
+      parts: '',
+      estimatedCost: 0,
+      repairCompany: ''
     })
     externalModalVisible.value = false
     await fetchOrders()
@@ -473,7 +448,7 @@ const handleExternalComplete = async () => {
     return
   }
   try {
-    await workOrderApi.completeExternal(currentOrder.value.id, {
+    await workOrderApi.completeExternalRepair(currentOrder.value.id, {
       repairRecord: externalCompleteForm.repairRecord,
       faultReason: externalCompleteForm.faultReason,
       solution: externalCompleteForm.solution,
@@ -492,8 +467,7 @@ const viewOrderDetail = (id: string) => {
 }
 
 const handleLogout = () => {
-  localStorage.removeItem('token')
-  localStorage.removeItem('user')
+  authApi.logout()
   router.push('/engineer/login')
 }
 

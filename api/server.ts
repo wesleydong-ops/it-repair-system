@@ -7,16 +7,13 @@ import https from 'https'
 import fs from 'fs'
 import nodemailer from 'nodemailer'
 import multer from 'multer'
+import crypto from 'crypto'
 import { config } from './config'
 
 const app = express()
 
 app.use(cors())
 app.use(express.json())
-
-app.use('/api', (_req, _res, next) => {
-  next()
-})
 
 const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers['authorization']
@@ -35,6 +32,17 @@ const authenticateToken = (req: express.Request, res: express.Response, next: ex
   })
 }
 
+// 角色权限检查中间件
+const requireRole = (...roles: string[]) => {
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const user = (req as any).user
+    if (!user || !roles.includes(user.role)) {
+      return res.status(403).json({ success: false, message: '权限不足' })
+    }
+    next()
+  }
+}
+
 const DATA_DIR = path.join(process.cwd(), 'data')
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json')
 const CERTS_DIR = path.join(process.cwd(), 'certs')
@@ -45,6 +53,29 @@ if (!fs.existsSync(DATA_DIR)) {
 }
 if (!fs.existsSync(CERTS_DIR)) {
   fs.mkdirSync(CERTS_DIR, { recursive: true })
+}
+
+// 通用 JSON 读写工具
+const loadJSON = <T>(filePath: string, defaultValue: T, label: string): T => {
+  try {
+    if (fs.existsSync(filePath)) {
+      return JSON.parse(fs.readFileSync(filePath, 'utf8'))
+    }
+    saveJSON(filePath, defaultValue, label)
+    return defaultValue
+  } catch (error) {
+    console.error(`加载${label}数据失败:`, error)
+    return defaultValue
+  }
+}
+
+const saveJSON = (filePath: string, data: unknown, label: string): void => {
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
+    console.log(`${label}数据已保存`)
+  } catch (error) {
+    console.error(`保存${label}数据失败:`, error)
+  }
 }
 
 const defaultSettings = {
@@ -62,45 +93,44 @@ const defaultSettings = {
   certPath: './certs',
   certPassword: '',
   certFileName: '',
+  chainFileName: '',
   keyFileName: ''
 }
 
 const loadSettings = (): typeof defaultSettings => {
-  try {
-    if (fs.existsSync(SETTINGS_FILE)) {
-      const data = fs.readFileSync(SETTINGS_FILE, 'utf8')
-      const savedSettings = JSON.parse(data)
-      return { ...defaultSettings, ...savedSettings }
-    }
-    saveSettings(defaultSettings)
-    return defaultSettings
-  } catch (error) {
-    console.error('加载设置失败:', error)
-    return defaultSettings
-  }
+  return loadJSON(SETTINGS_FILE, defaultSettings, '设置')
 }
 
 const saveSettings = (settings: typeof defaultSettings): void => {
-  try {
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2))
-    console.log('设置已保存')
-  } catch (error) {
-    console.error('保存设置失败:', error)
-  }
+  saveJSON(SETTINGS_FILE, settings, '设置')
 }
 
 const systemSettings = loadSettings()
 
-// 文件上传配置
+// 文件上传配置（限制大小和类型）
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
     cb(null, CERTS_DIR)
   },
   filename: (_req, file, cb) => {
-    cb(null, file.originalname)
+    // 使用 path.basename 去除路径部分，防止路径遍历攻击
+    const safeName = path.basename(file.originalname)
+    cb(null, safeName)
   }
 })
-const upload = multer({ storage })
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 最大 5MB
+  fileFilter: (_req, file, cb) => {
+    const allowedExts = ['.pem', '.crt', '.key', '.cer', '.pfx']
+    const ext = path.extname(file.originalname).toLowerCase()
+    if (allowedExts.includes(ext)) {
+      cb(null, true)
+    } else {
+      cb(new Error('不支持的文件类型，仅支持 .pem/.crt/.key/.cer/.pfx'))
+    }
+  }
+})
 
 const WORKORDERS_FILE = path.join(DATA_DIR, 'workorders.json')
 const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json')
@@ -129,29 +159,11 @@ interface Project {
 }
 
 const loadProjects = (): Project[] => {
-  try {
-    if (fs.existsSync(PROJECTS_FILE)) {
-      const data = fs.readFileSync(PROJECTS_FILE, 'utf8')
-      return JSON.parse(data)
-    }
-    saveProjects(defaultProjects)
-    return defaultProjects
-  } catch (error) {
-    console.error('加载项目数据失败:', error)
-    return defaultProjects
-  }
+  return loadJSON(PROJECTS_FILE, defaultProjects, '项目')
 }
 
 const saveProjects = (projectList: Project[]): void => {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true })
-    }
-    fs.writeFileSync(PROJECTS_FILE, JSON.stringify(projectList, null, 2))
-    console.log('项目数据已保存')
-  } catch (error) {
-    console.error('保存项目数据失败:', error)
-  }
+  saveJSON(PROJECTS_FILE, projectList, '项目')
 }
 
 interface GroupMember {
@@ -178,30 +190,15 @@ const defaultGroups: Group[] = [
 ]
 
 const loadGroups = (): Group[] => {
-  try {
-    if (fs.existsSync(GROUPS_FILE)) {
-      const data = fs.readFileSync(GROUPS_FILE, 'utf8')
-      return JSON.parse(data)
-    }
-    saveGroups(defaultGroups)
-    return defaultGroups
-  } catch (error) {
-    console.error('加载分组数据失败:', error)
-    return defaultGroups
-  }
+  return loadJSON(GROUPS_FILE, defaultGroups, '分组')
 }
 
 const saveGroups = (groupList: Group[]): void => {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true })
-    }
-    fs.writeFileSync(GROUPS_FILE, JSON.stringify(groupList, null, 2))
-    console.log('分组数据已保存')
-  } catch (error) {
-    console.error('保存分组数据失败:', error)
-  }
+  saveJSON(GROUPS_FILE, groupList, '分组')
 }
+
+const groups = loadGroups()
+const projects = loadProjects()
 
 interface WorkOrder {
   id: string
@@ -238,29 +235,11 @@ interface WorkOrder {
 }
 
 const loadWorkorders = (): WorkOrder[] => {
-  try {
-    if (fs.existsSync(WORKORDERS_FILE)) {
-      const data = fs.readFileSync(WORKORDERS_FILE, 'utf8')
-      return JSON.parse(data)
-    }
-    saveWorkorders(defaultWorkorders)
-    return defaultWorkorders
-  } catch (error) {
-    console.error('加载工单数据失败:', error)
-    return defaultWorkorders
-  }
+  return loadJSON(WORKORDERS_FILE, defaultWorkorders, '工单')
 }
 
 const saveWorkorders = (orders: WorkOrder[]): void => {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true })
-    }
-    fs.writeFileSync(WORKORDERS_FILE, JSON.stringify(orders, null, 2))
-    console.log('工单数据已保存')
-  } catch (error) {
-    console.error('保存工单数据失败:', error)
-  }
+  saveJSON(WORKORDERS_FILE, orders, '工单')
 }
 
 const defaultWorkorders = [
@@ -331,34 +310,26 @@ const defaultUsers: User[] = [
 ]
 
 const loadUsers = (): User[] => {
-  try {
-    if (fs.existsSync(USERS_FILE)) {
-      const data = fs.readFileSync(USERS_FILE, 'utf8')
-      return JSON.parse(data)
-    }
-    saveUsers(defaultUsers)
-    return defaultUsers
-  } catch (error) {
-    console.error('加载用户数据失败:', error)
-    return defaultUsers
-  }
+  return loadJSON(USERS_FILE, defaultUsers, '用户')
 }
 
 const saveUsers = (userList: User[]): void => {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true })
-    }
-    fs.writeFileSync(USERS_FILE, JSON.stringify(userList, null, 2))
-    console.log('用户数据已保存')
-  } catch (error) {
-    console.error('保存用户数据失败:', error)
-  }
+  saveJSON(USERS_FILE, userList, '用户')
 }
 
 const users = loadUsers()
 
 const verificationCodes: Record<string, { code: string; expiresAt: number }> = {}
+
+// 定期清理过期的验证码（每分钟清理一次）
+setInterval(() => {
+  const now = Date.now()
+  for (const [email, data] of Object.entries(verificationCodes)) {
+    if (now > data.expiresAt) {
+      delete verificationCodes[email]
+    }
+  }
+}, 60000)
 
 const validatePassword = (password: string): boolean => {
   if (password.length < 6) {
@@ -379,8 +350,7 @@ const validatePassword = (password: string): boolean => {
 app.post('/api/admin/login', async (req, res) => {
   const { username, password } = req.body
   
-  const freshUsers = loadUsers()
-  const user = freshUsers.find(u => u.username === username)
+  const user = users.find(u => u.username === username)
   
   if (!user) {
     return res.status(401).json({ success: false, message: '用户名不存在' })
@@ -402,14 +372,13 @@ app.post('/api/admin/login', async (req, res) => {
 app.post('/api/admin/forgot-password', async (req, res) => {
   const { email } = req.body
   
-  const freshUsers = loadUsers()
-  const user = freshUsers.find(u => u.email === email)
+  const user = users.find(u => u.email === email)
   
   if (!user) {
     return res.json({ success: false, message: '该邮箱未注册' })
   }
   
-  const code = Math.random().toString(36).substring(2, 8).toUpperCase()
+  const code = crypto.randomBytes(3).toString('hex').substring(0, 6).toUpperCase()
   const expiresAt = Date.now() + 300000
   
   verificationCodes[email] = { code, expiresAt }
@@ -475,15 +444,14 @@ app.post('/api/admin/reset-password', async (req, res) => {
     return res.json({ success: false, message: '密码必须至少6位，且包含大小写字母和数字' })
   }
   
-  const freshUsers = loadUsers()
-  const userIndex = freshUsers.findIndex(u => u.email === email)
-  
+  const userIndex = users.findIndex(u => u.email === email)
+
   if (userIndex === -1) {
     return res.json({ success: false, message: '用户不存在' })
   }
-  
-  freshUsers[userIndex].password = bcrypt.hashSync(newPassword, 10)
-  saveUsers(freshUsers)
+
+  users[userIndex].password = bcrypt.hashSync(newPassword, 10)
+  saveUsers(users)
   
   delete verificationCodes[email]
   
@@ -492,24 +460,22 @@ app.post('/api/admin/reset-password', async (req, res) => {
 
 app.get('/api/admin/me', authenticateToken, (req, res) => {
   const userId = (req as any).user.id
-  const freshUsers = loadUsers()
-  const user = freshUsers.find(u => u.id === userId)
-  
+  const user = users.find(u => u.id === userId)
+
   if (!user) {
     return res.status(404).json({ success: false, message: '用户不存在' })
   }
-  
+
   res.json({
     success: true,
     user: { id: user.id, username: user.username, name: user.name, role: user.role }
   })
 })
 
-app.get('/api/admin/users', authenticateToken, (_req, res) => {
-  const freshUsers = loadUsers()
+app.get('/api/admin/users', authenticateToken, requireRole('admin'), (_req, res) => {
   res.json({
     success: true,
-    data: freshUsers.map(u => ({
+    data: users.map(u => ({
       id: u.id,
       username: u.username,
       name: u.name,
@@ -523,7 +489,7 @@ app.get('/api/admin/users', authenticateToken, (_req, res) => {
   })
 })
 
-app.post('/api/admin/users', authenticateToken, (req, res) => {
+app.post('/api/admin/users', authenticateToken, requireRole('admin'), (req, res) => {
   const { username, name, role, area, email, webexId, password } = req.body
   
   if (!email && !webexId) {
@@ -537,7 +503,7 @@ app.post('/api/admin/users', authenticateToken, (req, res) => {
   const newUser: User = {
     id: Date.now().toString(),
     username,
-    password: bcrypt.hashSync(password || '123456', 10),
+    password: bcrypt.hashSync(password || 'Admin1', 10),
     name,
     role,
     area: area || '',
@@ -553,57 +519,55 @@ app.post('/api/admin/users', authenticateToken, (req, res) => {
   res.json({ success: true, data: { ...newUser, password: '' } })
 })
 
-app.put('/api/admin/users/:id', authenticateToken, (req, res) => {
+app.put('/api/admin/users/:id', authenticateToken, requireRole('admin'), (req, res) => {
   const { id } = req.params
   const { name, role, area, isActive, email, webexId } = req.body
-  
-  const freshUsers = loadUsers()
-  const userIndex = freshUsers.findIndex(u => u.id === id)
-  
+
+  const userIndex = users.findIndex(u => u.id === id)
+
   if (userIndex === -1) {
     return res.status(404).json({ success: false, message: '用户不存在' })
   }
-  
-  freshUsers[userIndex] = {
-    ...freshUsers[userIndex],
+
+  users[userIndex] = {
+    ...users[userIndex],
     name,
     role,
     area,
     isActive,
-    email: email || freshUsers[userIndex].email,
-    webexId: webexId || freshUsers[userIndex].webexId
+    email: email || users[userIndex].email,
+    webexId: webexId || users[userIndex].webexId
   }
-  
-  saveUsers(freshUsers)
-  
-  res.json({ success: true, data: { ...freshUsers[userIndex], password: '' } })
+
+  saveUsers(users)
+
+  res.json({ success: true, data: { ...users[userIndex], password: '' } })
 })
 
-app.delete('/api/admin/users/:id', authenticateToken, (req, res) => {
+app.delete('/api/admin/users/:id', authenticateToken, requireRole('admin'), (req, res) => {
   const { id } = req.params
-  
-  const freshUsers = loadUsers()
-  const userIndex = freshUsers.findIndex(u => u.id === id)
-  
+
+  const userIndex = users.findIndex(u => u.id === id)
+
   if (userIndex === -1) {
     return res.status(404).json({ success: false, message: '用户不存在' })
   }
-  
-  freshUsers.splice(userIndex, 1)
-  saveUsers(freshUsers)
-  
+
+  users.splice(userIndex, 1)
+  saveUsers(users)
+
   res.json({ success: true, message: '删除成功' })
 })
 
 app.post('/api/workorder/submit', async (req, res) => {
   const { applicantName, department, location, extension, email, webexId, assetNo, deviceType, deviceLocation, projectId, description, repairType, notificationChannels, priority, area } = req.body
-  
+
   // 自动派单：查找对应区域的分组，按组内工程师当前工单数最少的分配
+  // 注意：新工单保持 pending 状态，工程师可以抢单
   let assignedEngineerId = ''
   let assignedEngineerName = ''
-  let orderStatus = 'pending'
-  
-  const groups = loadGroups()
+  let orderStatus = 'pending' // 保持 pending 状态，允许工程师抢单
+
   const matchedGroup = groups.find(g => g.area === area && g.isActive)
   
   if (matchedGroup && matchedGroup.members.length > 0) {
@@ -611,27 +575,29 @@ app.post('/api/workorder/submit', async (req, res) => {
     const activeMembers = matchedGroup.members.filter(m => m.isActive)
     
     if (activeMembers.length > 0) {
-      // 统计每个工程师当前处理中的工单数（accepted + processing）
-      const engineerLoad: Record<string, number> = {}
-      activeMembers.forEach(m => {
-        engineerLoad[m.id] = workorders.filter(o => 
-          o.engineerId === m.id && (o.status === 'accepted' || o.status === 'processing')
-        ).length
-      })
+      // 优化：单次遍历统计所有工程师的工作量，而不是对每个工程师遍历一次
+      const engineerLoad = new Map<string, number>()
+      for (const order of workorders) {
+        if (order.engineerId && (order.status === 'accepted' || order.status === 'processing')) {
+          engineerLoad.set(order.engineerId, (engineerLoad.get(order.engineerId) || 0) + 1)
+        }
+      }
       
       // 选择工单数最少的工程师（平均派单）
       let minLoad = Infinity
       let selectedMember = activeMembers[0]
       for (const member of activeMembers) {
-        if (engineerLoad[member.id] < minLoad) {
-          minLoad = engineerLoad[member.id]
+        const load = engineerLoad.get(member.id) || 0
+        if (load < minLoad) {
+          minLoad = load
           selectedMember = member
         }
       }
       
+      // 记录预分配工程师信息，但不改变工单状态
       assignedEngineerId = selectedMember.id
       assignedEngineerName = selectedMember.name
-      orderStatus = 'accepted' // 自动派单直接变为已接单
+      // 保持 orderStatus = 'pending'，让工程师可以抢单
     }
   }
   
@@ -697,30 +663,32 @@ app.post('/api/workorder/submit', async (req, res) => {
   res.json({ success: true, orderNo: newOrder.orderNo, message: '工单提交成功' })
 })
 
-app.get('/api/workorder/list', (req, res) => {
-  const { status, area, page = 1, size = 10 } = req.query
+app.get('/api/workorder/list', authenticateToken, (req, res) => {
+  const { status, area, priority, search, page = 1, size = 10 } = req.query
+  const keyword = search ? String(search).toLowerCase() : null
   
-  let filteredOrders = workorders
-  
-  if (status) {
-    filteredOrders = filteredOrders.filter(o => o.status === status)
-  }
-  
-  if (area) {
-    filteredOrders = filteredOrders.filter(o => o.area === area)
+  // 单次遍历，避免多次 filter 产生中间数组
+  const matched: WorkOrder[] = []
+  for (const o of workorders) {
+    if (status && o.status !== status) continue
+    if (area && o.area !== area) continue
+    if (priority && o.priority !== priority) continue
+    if (keyword) {
+      const hay = `${o.orderNo} ${o.applicantName} ${o.department} ${o.description}`.toLowerCase()
+      if (!hay.includes(keyword)) continue
+    }
+    matched.push(o)
   }
   
   const start = (Number(page) - 1) * Number(size)
-  const end = start + Number(size)
-  
   res.json({
     success: true,
-    data: filteredOrders.slice(start, end),
-    total: filteredOrders.length
+    data: matched.slice(start, start + Number(size)),
+    total: matched.length
   })
 })
 
-app.get('/api/workorder/:id', (req, res) => {
+app.get('/api/workorder/:id', authenticateToken, (req, res) => {
   const { id } = req.params
   
   const order = workorders.find(o => o.id === id)
@@ -745,10 +713,9 @@ app.post('/api/workorder/:id/accept', authenticateToken, async (req, res) => {
   if (order.status !== 'pending') {
     return res.status(400).json({ success: false, message: '工单状态不允许接单' })
   }
-  
-  const freshUsers = loadUsers()
-  const user = freshUsers.find(u => u.id === userId)
-  
+
+  const user = users.find(u => u.id === userId)
+
   order.status = 'accepted'
   order.engineerId = userId
   order.engineerName = user?.name || ''
@@ -955,7 +922,7 @@ app.post('/api/workorder/:id/external/reject', authenticateToken, (req, res) => 
   }
   
   order.status = 'processing'
-  order.externalReason = ''
+  order.externalReason = reason || '外修申请被驳回'
   order.externalParts = ''
   order.externalCost = 0
   order.externalCompany = ''
@@ -989,19 +956,17 @@ app.post('/api/workorder/:id/external/complete', authenticateToken, (req, res) =
   res.json({ success: true, message: '外修完成' })
 })
 
-app.get('/api/admin/groups', authenticateToken, (_req, res) => {
-  const groups = loadGroups()
+app.get('/api/admin/groups', authenticateToken, requireRole('admin'), (_req, res) => {
   res.json({ success: true, data: groups })
 })
 
-app.post('/api/admin/groups', authenticateToken, (req, res) => {
+app.post('/api/admin/groups', authenticateToken, requireRole('admin'), (req, res) => {
   const { name, area, description } = req.body
   
   if (!name || !area) {
     return res.status(400).json({ success: false, message: '分组名称和区域不能为空' })
   }
   
-  const groups = loadGroups()
   const newGroup: Group = {
     id: Date.now().toString(),
     name,
@@ -1017,11 +982,10 @@ app.post('/api/admin/groups', authenticateToken, (req, res) => {
   res.json({ success: true, message: '分组创建成功', data: newGroup })
 })
 
-app.put('/api/admin/groups/:id', authenticateToken, (req, res) => {
+app.put('/api/admin/groups/:id', authenticateToken, requireRole('admin'), (req, res) => {
   const { id } = req.params
   const { name, area, description, isActive } = req.body
   
-  const groups = loadGroups()
   const groupIndex = groups.findIndex(g => g.id === id)
   
   if (groupIndex === -1) {
@@ -1041,10 +1005,9 @@ app.put('/api/admin/groups/:id', authenticateToken, (req, res) => {
   res.json({ success: true, message: '分组更新成功', data: groups[groupIndex] })
 })
 
-app.delete('/api/admin/groups/:id', authenticateToken, (req, res) => {
+app.delete('/api/admin/groups/:id', authenticateToken, requireRole('admin'), (req, res) => {
   const { id } = req.params
   
-  const groups = loadGroups()
   const groupIndex = groups.findIndex(g => g.id === id)
   
   if (groupIndex === -1) {
@@ -1057,18 +1020,16 @@ app.delete('/api/admin/groups/:id', authenticateToken, (req, res) => {
   res.json({ success: true, message: '分组删除成功' })
 })
 
-app.post('/api/admin/groups/:id/members', authenticateToken, (req, res) => {
+app.post('/api/admin/groups/:id/members', authenticateToken, requireRole('admin'), (req, res) => {
   const { id } = req.params
   const { userId } = req.body
 
-  const freshUsers = loadUsers()
-  const user = freshUsers.find(u => u.id === userId)
+  const user = users.find(u => u.id === userId)
 
   if (!user) {
     return res.status(404).json({ success: false, message: '用户不存在' })
   }
 
-  const groups = loadGroups()
   const groupIndex = groups.findIndex(g => g.id === id)
 
   if (groupIndex === -1) {
@@ -1097,10 +1058,9 @@ app.post('/api/admin/groups/:id/members', authenticateToken, (req, res) => {
   res.json({ success: true, message: '成员添加成功', data: groups[groupIndex] })
 })
 
-app.delete('/api/admin/groups/:id/members/:userId', authenticateToken, (req, res) => {
+app.delete('/api/admin/groups/:id/members/:userId', authenticateToken, requireRole('admin'), (req, res) => {
   const { id, userId } = req.params
 
-  const groups = loadGroups()
   const groupIndex = groups.findIndex(g => g.id === id)
 
   if (groupIndex === -1) {
@@ -1119,15 +1079,13 @@ app.delete('/api/admin/groups/:id/members/:userId', authenticateToken, (req, res
   res.json({ success: true, message: '成员移除成功', data: groups[groupIndex] })
 })
 
-app.get('/api/admin/projects', authenticateToken, (_req, res) => {
-  const projects = loadProjects()
+app.get('/api/admin/projects', authenticateToken, requireRole('admin'), (_req, res) => {
   res.json({ success: true, data: projects })
 })
 
 app.post('/api/admin/projects', authenticateToken, (req, res) => {
   const { name, category, description, sortOrder } = req.body
   
-  const projects = loadProjects()
   const newProject: Project = {
     id: Date.now().toString(),
     name,
@@ -1143,11 +1101,10 @@ app.post('/api/admin/projects', authenticateToken, (req, res) => {
   res.json({ success: true, message: '项目创建成功', data: newProject })
 })
 
-app.put('/api/admin/projects/:id', authenticateToken, (req, res) => {
+app.put('/api/admin/projects/:id', authenticateToken, requireRole('admin'), (req, res) => {
   const { id } = req.params
   const { name, category, description, sortOrder, isActive } = req.body
   
-  const projects = loadProjects()
   const projectIndex = projects.findIndex(p => p.id === id)
   
   if (projectIndex === -1) {
@@ -1168,10 +1125,9 @@ app.put('/api/admin/projects/:id', authenticateToken, (req, res) => {
   res.json({ success: true, message: '项目更新成功', data: projects[projectIndex] })
 })
 
-app.delete('/api/admin/projects/:id', authenticateToken, (req, res) => {
+app.delete('/api/admin/projects/:id', authenticateToken, requireRole('admin'), (req, res) => {
   const { id } = req.params
   
-  const projects = loadProjects()
   const projectIndex = projects.findIndex(p => p.id === id)
   
   if (projectIndex === -1) {
@@ -1184,29 +1140,77 @@ app.delete('/api/admin/projects/:id', authenticateToken, (req, res) => {
   res.json({ success: true, message: '项目删除成功' })
 })
 
-app.get('/api/admin/statistics', authenticateToken, (_req, res) => {
-  const completedCount = workorders.filter(o => o.status === 'completed' || o.status === 'closed').length
+app.get('/api/admin/statistics', authenticateToken, requireRole('admin'), (_req, res) => {
+  // 单次遍历计算所有统计数据
+  let pendingCount = 0
+  let completedCount = 0
+  const areaStats = new Map<string, { orderCount: number; completedCount: number }>()
+  
+  for (const order of workorders) {
+    // 统计状态
+    if (order.status === 'pending') pendingCount++
+    if (order.status === 'completed' || order.status === 'closed') completedCount++
+    
+    // 统计区域
+    const area = order.area || 'unknown'
+    const stats = areaStats.get(area) || { orderCount: 0, completedCount: 0 }
+    stats.orderCount++
+    if (order.status === 'completed' || order.status === 'closed') {
+      stats.completedCount++
+    }
+    areaStats.set(area, stats)
+  }
+  
+  // 计算工程师统计（单次遍历）
+  const engineerStatsMap = new Map<string, { acceptedCount: number; completedCount: number }>()
+  for (const order of workorders) {
+    if (order.engineerId) {
+      const stats = engineerStatsMap.get(order.engineerId) || { acceptedCount: 0, completedCount: 0 }
+      if (order.status !== 'pending') {
+        stats.acceptedCount++
+      }
+      if (order.status === 'completed' || order.status === 'closed') {
+        stats.completedCount++
+      }
+      engineerStatsMap.set(order.engineerId, stats)
+    }
+  }
+  
+  // 转换为数组格式
+  const engineerStats = Array.from(engineerStatsMap.entries()).map(([engineerId, stats]) => ({
+    engineerId,
+    name: users.find(u => u.id === engineerId)?.name || '未知',
+    area: users.find(u => u.id === engineerId)?.area || 'unknown',
+    acceptedCount: stats.acceptedCount,
+    completedCount: stats.completedCount,
+    completionRate: stats.acceptedCount > 0 ? Math.round((stats.completedCount / stats.acceptedCount) * 100) : 0,
+    avgDuration: 2.3,
+    urgentCount: 0
+  }))
+  
+  // 转换区域统计
+  const areaStatsArray = Array.from(areaStats.entries()).map(([area, stats]) => ({
+    area,
+    orderCount: stats.orderCount,
+    completionRate: stats.orderCount > 0 ? Math.round((stats.completedCount / stats.orderCount) * 100) : 0
+  }))
   
   res.json({
     success: true,
     data: {
       totalOrders: workorders.length,
       completedOrders: completedCount,
-      pendingOrders: workorders.filter(o => o.status === 'pending').length,
+      pendingOrders: pendingCount,
       averageDuration: 2.3,
-      engineerStats: [
-        { engineerId: '2', name: '陈工', acceptedCount: 15, completedCount: 14, avgDuration: 2.1 },
-        { engineerId: '3', name: '李工', acceptedCount: 12, completedCount: 11, avgDuration: 2.5 }
-      ],
-      areaStats: [
-        { area: 'A', orderCount: workorders.filter(o => o.area === 'A').length, completionRate: 93 },
-        { area: 'CK', orderCount: workorders.filter(o => o.area === 'CK').length, completionRate: 89 }
-      ]
+      externalOrders: workorders.filter(o => o.repairType === 'external').length,
+      completionRate: workorders.length > 0 ? Math.round((completedCount / workorders.length) * 100) : 0,
+      engineerStats,
+      areaStats: areaStatsArray
     }
   })
 })
 
-app.post('/api/admin/settings/test-webex', authenticateToken, async (_req, res) => {
+app.post('/api/admin/settings/test-webex', authenticateToken, requireRole('admin'), async (_req, res) => {
   try {
     if (!systemSettings.webexToken || !systemSettings.webexRoomId) {
       return res.json({ success: false, message: 'Webex配置不完整，请先配置Token和Room ID' })
@@ -1240,14 +1244,14 @@ app.post('/api/admin/settings/test-webex', authenticateToken, async (_req, res) 
   }
 })
 
-app.get('/api/admin/settings', authenticateToken, (_req, res) => {
+app.get('/api/admin/settings', authenticateToken, requireRole('admin'), (_req, res) => {
   res.json({
     success: true,
     data: {
       smtpHost: systemSettings.smtpHost,
       smtpPort: systemSettings.smtpPort,
       smtpUsername: systemSettings.smtpUsername,
-      smtpPassword: systemSettings.smtpPassword,
+      smtpPassword: systemSettings.smtpPassword ? '******' : '',
       smtpSecure: systemSettings.smtpSecure,
       webexToken: systemSettings.webexToken,
       webexRoomId: systemSettings.webexRoomId,
@@ -1256,29 +1260,34 @@ app.get('/api/admin/settings', authenticateToken, (_req, res) => {
       systemUrl: systemSettings.systemUrl,
       httpsPort: systemSettings.httpsPort,
       certPath: systemSettings.certPath,
-      certPassword: systemSettings.certPassword,
+      certPassword: systemSettings.certPassword ? '******' : '',
       certFileName: systemSettings.certFileName,
+      chainFileName: systemSettings.chainFileName,
       keyFileName: systemSettings.keyFileName
     }
   })
 })
 
-app.put('/api/admin/settings', authenticateToken, (req, res) => {
-  const { smtpHost, smtpPort, smtpUsername, smtpPassword, smtpSecure, webexToken, webexRoomId, extensionServer, extensionPort, systemUrl, httpsPort, certPath, certPassword } = req.body
+app.put('/api/admin/settings', authenticateToken, requireRole('admin'), (req, res) => {
+  const { smtpHost, smtpPort, smtpUsername, smtpPassword, smtpSecure, webexToken, webexRoomId, extensionServer, extensionPort, systemUrl, httpsPort, certPath, certPassword, certFileName, chainFileName, keyFileName } = req.body
   
   if (smtpHost !== undefined) systemSettings.smtpHost = smtpHost
-  if (smtpPort !== undefined) systemSettings.smtpPort = smtpPort
+  if (smtpPort !== undefined) systemSettings.smtpPort = Number(smtpPort)
   if (smtpUsername !== undefined) systemSettings.smtpUsername = smtpUsername
-  if (smtpPassword !== undefined) systemSettings.smtpPassword = smtpPassword
+  // 密码脱敏后不覆盖真实值
+  if (smtpPassword !== undefined && smtpPassword !== '******') systemSettings.smtpPassword = smtpPassword
   if (smtpSecure !== undefined) systemSettings.smtpSecure = smtpSecure
   if (webexToken !== undefined) systemSettings.webexToken = webexToken
   if (webexRoomId !== undefined) systemSettings.webexRoomId = webexRoomId
   if (extensionServer !== undefined) systemSettings.extensionServer = extensionServer
-  if (extensionPort !== undefined) systemSettings.extensionPort = extensionPort
+  if (extensionPort !== undefined) systemSettings.extensionPort = Number(extensionPort)
   if (systemUrl !== undefined) systemSettings.systemUrl = systemUrl
-  if (httpsPort !== undefined) systemSettings.httpsPort = httpsPort
+  if (httpsPort !== undefined) systemSettings.httpsPort = Number(httpsPort)
   if (certPath !== undefined) systemSettings.certPath = certPath
-  if (certPassword !== undefined) systemSettings.certPassword = certPassword
+  if (certPassword !== undefined && certPassword !== '******') systemSettings.certPassword = certPassword
+  if (certFileName !== undefined) systemSettings.certFileName = certFileName
+  if (chainFileName !== undefined) systemSettings.chainFileName = chainFileName
+  if (keyFileName !== undefined) systemSettings.keyFileName = keyFileName
   
   saveSettings(systemSettings)
   
@@ -1286,7 +1295,7 @@ app.put('/api/admin/settings', authenticateToken, (req, res) => {
 })
 
 // 上传证书文件
-app.post('/api/admin/settings/upload-cert', authenticateToken, upload.single('certFile'), (req, res) => {
+app.post('/api/admin/settings/upload-cert', authenticateToken, requireRole('admin'), upload.single('certFile'), (req, res) => {
   if (!req.file) {
     return res.json({ success: false, message: '请选择证书文件' })
   }
@@ -1298,7 +1307,7 @@ app.post('/api/admin/settings/upload-cert', authenticateToken, upload.single('ce
 })
 
 // 上传私钥文件
-app.post('/api/admin/settings/upload-key', authenticateToken, upload.single('keyFile'), (req, res) => {
+app.post('/api/admin/settings/upload-key', authenticateToken, requireRole('admin'), upload.single('keyFile'), (req, res) => {
   if (!req.file) {
     return res.json({ success: false, message: '请选择私钥文件' })
   }
@@ -1309,7 +1318,19 @@ app.post('/api/admin/settings/upload-key', authenticateToken, upload.single('key
   res.json({ success: true, message: '私钥上传成功', fileName: req.file.originalname })
 })
 
-app.post('/api/admin/settings/test-email', authenticateToken, async (req, res) => {
+// 上传中间证书链文件
+app.post('/api/admin/settings/upload-chain', authenticateToken, upload.single('chainFile'), (req, res) => {
+  if (!req.file) {
+    return res.json({ success: false, message: '请选择证书链文件' })
+  }
+  
+  systemSettings.chainFileName = req.file.originalname
+  saveSettings(systemSettings)
+  
+  res.json({ success: true, message: '证书链上传成功', fileName: req.file.originalname })
+})
+
+app.post('/api/admin/settings/test-email', authenticateToken, requireRole('admin'), async (req, res) => {
   const { testEmail: toEmail } = req.body
   
   if (!systemSettings.smtpPassword) {
@@ -1338,6 +1359,11 @@ app.post('/api/admin/settings/test-email', authenticateToken, async (req, res) =
 })
 
 app.use(express.static(config.staticPath))
+
+// API 404 处理（在通配路由之前）
+app.use('/api', (_req, res) => {
+  res.status(404).json({ success: false, message: 'API 不存在' })
+})
 
 app.get('/', (_req, res) => {
   const indexPath = path.join(config.staticPath, 'index.html')
@@ -1465,23 +1491,52 @@ function generateDefaultHomePage(httpsPort: number): string {
   `
 }
 
-// 读取SSL证书配置
-const SSL_OPTIONS = {
-  key: fs.existsSync(path.join(config.certPath, 'server.key')) 
-    ? fs.readFileSync(path.join(config.certPath, 'server.key')) 
-    : null,
-  cert: fs.existsSync(path.join(config.certPath, 'server.crt')) 
-    ? fs.readFileSync(path.join(config.certPath, 'server.crt')) 
-    : null
+// 读取SSL证书配置（从settings.json中读取上传的文件名）
+const certFile = systemSettings.certFileName || 'server.crt'
+const chainFile = systemSettings.chainFileName || ''
+const keyFile = systemSettings.keyFileName || 'server.key'
+
+// 证书路径转为绝对路径（避免启动目录不同导致找不到文件）
+const sslCertPath = path.isAbsolute(systemSettings.certPath) 
+  ? systemSettings.certPath 
+  : path.resolve(process.cwd(), systemSettings.certPath)
+
+// 读取证书和密钥
+const certBuffer = fs.existsSync(path.join(sslCertPath, certFile)) 
+  ? fs.readFileSync(path.join(sslCertPath, certFile)) 
+  : null
+const chainBuffer = chainFile && fs.existsSync(path.join(sslCertPath, chainFile)) 
+  ? fs.readFileSync(path.join(sslCertPath, chainFile)) 
+  : null
+const keyBuffer = fs.existsSync(path.join(sslCertPath, keyFile)) 
+  ? fs.readFileSync(path.join(sslCertPath, keyFile)) 
+  : null
+
+// 合并服务器证书和中间证书链（中间加换行符防止 PEM 格式损坏）
+const fullCert = certBuffer && chainBuffer 
+  ? Buffer.concat([certBuffer, Buffer.from('\n'), chainBuffer]) 
+  : certBuffer
+
+const SSL_OPTIONS: https.ServerOptions = {
+  key: keyBuffer,
+  cert: fullCert
 }
 
 if (SSL_OPTIONS.key && SSL_OPTIONS.cert) {
-  https.createServer(SSL_OPTIONS, app).listen(config.httpsPort, () => {
-    console.log(`HTTPS Server is running on https://localhost:${config.httpsPort}`)
-    console.log(`证书路径: ${config.certPath}`)
+  https.createServer(SSL_OPTIONS, app).listen(systemSettings.httpsPort, () => {
+    console.log(`HTTPS Server is running on https://localhost:${systemSettings.httpsPort}`)
+    console.log(`证书文件: ${certFile}${chainFile ? ' + ' + chainFile : ''}`)
+    console.log(`私钥文件: ${keyFile}`)
+    console.log(`证书路径: ${sslCertPath}`)
   })
   
-  app.listen(config.httpPort, () => {
+  // HTTP 服务器重定向到 HTTPS
+  const httpApp = express()
+  httpApp.use((req, res) => {
+    const host = req.headers.host?.replace(/:\d+/, '') || 'localhost'
+    res.redirect(`https://${host}:${systemSettings.httpsPort}${req.url}`)
+  })
+  httpApp.listen(config.httpPort, () => {
     console.log(`HTTP Server is running on http://localhost:${config.httpPort}`)
     console.log(`HTTP请求将自动重定向到HTTPS`)
   })
