@@ -78,7 +78,7 @@ export interface WorkOrder {
   projectId: string
   projectName: string
   description: string
-  repairType: 'internal' | 'remote'
+  repairType: 'internal'
   notificationChannels: ('extension' | 'email' | 'webex')[]
   priority: 'normal' | 'urgent'
   status: 'pending' | 'accepted' | 'processing' | 'external_pending' | 'external_processing' | 'completed' | 'closed'
@@ -220,7 +220,7 @@ export const projectApi = {
 }
 
 export const statisticsApi = {
-  get: (params?: { startTime?: string; endTime?: string; department?: string; area?: string }) =>
+  get: (params?: { month?: string }) =>
     api.get('/admin/statistics', { params })
 }
 

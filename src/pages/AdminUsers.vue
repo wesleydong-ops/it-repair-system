@@ -1,71 +1,6 @@
 <template>
   <div class="min-h-screen bg-gray-100">
-    <aside class="fixed left-0 top-0 h-screen w-64 bg-white shadow-lg">
-      <div class="p-4 border-b">
-        <button @click="goHome" class="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition-colors w-full">
-          <Home class="w-4 h-4" />
-          返回首页
-        </button>
-      </div>
-      <div class="p-6 border-b">
-        <div class="flex items-center gap-3">
-          <img src="/logo.png" alt="FoxLink" class="w-16 h-6 object-contain drop-shadow-md" />
-          <span class="font-bold text-gray-800">IT报修系统</span>
-        </div>
-      </div>
-      <nav class="p-4">
-        <ul class="space-y-2">
-          <li>
-            <a href="/admin" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <LayoutDashboard class="w-5 h-5" />
-              仪表盘
-            </a>
-          </li>
-          <li>
-            <a href="/admin/users" class="flex items-center gap-3 px-4 py-3 bg-darkblue text-white rounded-xl shadow-md">
-              <Users class="w-5 h-5" />
-              用户管理
-            </a>
-          </li>
-          <li>
-            <a href="/admin/groups" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Users class="w-5 h-5" />
-              工程师分组
-            </a>
-          </li>
-          <li>
-            <a href="/admin/projects" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Settings class="w-5 h-5" />
-              维修项目
-            </a>
-          </li>
-          <li>
-            <a href="/admin/workorders" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <ClipboardList class="w-5 h-5" />
-              工单管理
-            </a>
-          </li>
-          <li>
-            <a href="/admin/statistics" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <BarChart3 class="w-5 h-5" />
-              数据统计
-            </a>
-          </li>
-          <li v-if="userRole !== 'operator'">
-            <a href="/admin/settings" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Settings class="w-5 h-5" />
-              系统设置
-            </a>
-          </li>
-        </ul>
-      </nav>
-      <div class="absolute bottom-0 left-0 right-0 p-4 border-t">
-        <button @click="handleLogout" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors w-full">
-          <LogOut class="w-5 h-5" />
-          退出登录
-        </button>
-      </div>
-    </aside>
+    <AdminSidebar activePath="/admin/users" />
 
     <main class="ml-64 p-8">
       <header class="mb-8">
@@ -88,9 +23,8 @@
             <select v-model="filters.role" class="form-select w-32">
               <option value="">全部</option>
               <option value="admin">超级管理员</option>
-              <option value="operator">运维管理员</option>
               <option value="engineer">工程师</option>
-              <option value="purchase">资讯采购</option>
+              <option value="purchaser">资讯采购</option>
               <option value="user">普通用户</option>
             </select>
           </div>
@@ -185,9 +119,8 @@
               <label class="form-label">角色</label>
               <select v-model="editUserModel.role" class="form-select">
                 <option value="admin">超级管理员</option>
-                <option value="operator">运维管理员</option>
                 <option value="engineer">工程师</option>
-                <option value="purchase">资讯采购</option>
+                <option value="purchaser">资讯采购</option>
                 <option value="user">普通用户</option>
               </select>
             </div>
@@ -238,7 +171,7 @@ interface User {
 
 const router = useRouter()
 
-// 获取当前用户角色，运维员(operator)隐藏系统设置
+// 获取当前用户角色
 const userRole = computed(() => {
   try {
     const user = JSON.parse(localStorage.getItem('user') || '{}')
@@ -314,9 +247,8 @@ const isLoading = ref(false)
 const getRoleText = (role: string) => {
   const texts: Record<string, string> = {
     admin: '超级管理员',
-    operator: '运维管理员',
     engineer: '工程师',
-    purchase: '资讯采购',
+    purchaser: '资讯采购',
     user: '普通用户'
   }
   return texts[role] || role
@@ -447,7 +379,7 @@ const saveUser = async () => {
       return
     }
 
-    if ((editUserModel.role === 'admin' || editUserModel.role === 'operator' || editUserModel.role === 'engineer') && 
+    if ((editUserModel.role === 'admin' || editUserModel.role === 'engineer') && 
         !editUserModel.email && !editUserModel.webexId) {
       alert('工程师及管理员必须填写邮箱或Webex ID至少一项，用于接收工单通知和密码重置')
       return

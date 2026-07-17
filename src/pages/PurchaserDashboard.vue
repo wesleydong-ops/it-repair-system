@@ -32,6 +32,14 @@
     </aside>
 
     <main class="ml-64 p-8">
+      <div v-if="isLoading" class="text-center py-12 text-gray-500">
+        <p>加载中...</p>
+      </div>
+      <div v-else-if="error" class="text-center py-12 text-red-500">
+        <p>加载失败：{{ error }}</p>
+        <button @click="loadOrders" class="btn-primary mt-4">重试</button>
+      </div>
+      <template v-else>
       <header class="mb-8">
         <div class="flex items-center justify-between">
           <div>
@@ -45,6 +53,7 @@
                 <option value="">全部</option>
                 <option value="external_pending">待审批</option>
                 <option value="external_processing">处理中</option>
+                <option value="external_rejected">已驳回</option>
                 <option value="completed">已完成</option>
               </select>
             </div>
@@ -110,7 +119,7 @@
                 <td class="px-4 py-3">{{ order.applicantName }}</td>
                 <td class="px-4 py-3">{{ order.deviceType }}</td>
                 <td class="px-4 py-3">{{ order.externalReason }}</td>
-                <td class="px-4 py-3">¥{{ order.externalCost?.toFixed(2) }}</td>
+                <td class="px-4 py-3">¥{{ order.externalCost ? Number(order.externalCost).toFixed(2) : '0.00' }}</td>
                 <td class="px-4 py-3">{{ order.externalCompany }}</td>
                 <td class="px-4 py-3">
                   <span :class="getStatusClass(order.status)">{{ getStatusText(order.status) }}</span>
@@ -133,6 +142,7 @@
           <p>暂无外修申请</p>
         </div>
       </div>
+      </template>
     </main>
   </div>
 </template>
@@ -163,11 +173,14 @@ interface WorkOrder {
 
 const orders = ref<WorkOrder[]>([])
 const filterStatus = ref('')
+const isLoading = ref(false)
+const error = ref('')
 
 const filteredOrders = computed(() => {
   let result = orders.value.filter(o => 
     o.status === 'external_pending' || 
     o.status === 'external_processing' || 
+    o.status === 'external_rejected' ||
     o.status === 'completed'
   )
   
@@ -180,12 +193,13 @@ const filteredOrders = computed(() => {
 
 const pendingCount = computed(() => orders.value.filter(o => o.status === 'external_pending').length)
 const processingCount = computed(() => orders.value.filter(o => o.status === 'external_processing').length)
-const completedCount = computed(() => orders.value.filter(o => o.status === 'completed').length)
+const completedCount = computed(() => orders.value.filter(o => o.status === 'completed' || o.status === 'external_rejected').length)
 
 const getStatusClass = (status: string) => {
   const classes: Record<string, string> = {
     external_pending: 'status-external-pending',
     external_processing: 'status-external-processing',
+    external_rejected: 'status-rejected',
     completed: 'status-completed'
   }
   return classes[status] || 'status-pending'
@@ -195,17 +209,29 @@ const getStatusText = (status: string) => {
   const texts: Record<string, string> = {
     external_pending: '待审批',
     external_processing: '处理中',
+    external_rejected: '已驳回',
     completed: '已完成'
   }
   return texts[status] || '未知'
 }
 
 const loadOrders = async () => {
+  isLoading.value = true
+  error.value = ''
   try {
     const response = await workOrderApi.list()
-    orders.value = response.data.data
-  } catch (error) {
-    console.error('加载工单列表失败:', error)
+    console.log('采购员加载工单响应:', response.data)
+    if (response.data.success) {
+      orders.value = response.data.data || []
+    } else {
+      error.value = response.data.message || '加载失败'
+      console.error('API 返回错误:', response.data.message)
+    }
+  } catch (err: any) {
+    error.value = err.message || '网络错误'
+    console.error('加载工单列表失败:', err)
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -250,7 +276,9 @@ onMounted(() => {
   } catch {
     user = {}
   }
+  console.log('采购员页面加载，用户信息:', user)
   if (!user.id || user.role !== 'purchaser') {
+    console.log('用户角色不是采购员，重定向到登录页')
     router.push('/purchaser/login')
     return
   }

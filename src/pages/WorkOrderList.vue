@@ -266,8 +266,8 @@ const loadOrders = async () => {
     })
     const result = await response.json()
     if (result.success) {
-      orders.value = result.data.orders || []
-      total.value = result.data.total || 0
+      orders.value = result.data || []
+      total.value = result.total || 0
     }
   } catch (error) {
     console.error('加载工单列表失败:', error)

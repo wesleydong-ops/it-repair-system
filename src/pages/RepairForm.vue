@@ -194,55 +194,6 @@
 
             <div class="form-group">
               <label class="form-label">
-                <span class="text-red-500">*</span> 维修场景类型
-              </label>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
-                <label 
-                  :class="[
-                    'flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all duration-300',
-                    form.repairType === 'internal' 
-                      ? 'border-primary-500 bg-primary-50' 
-                      : 'border-gray-200 hover:border-gray-300 bg-white'
-                  ]"
-                >
-                  <input
-                    type="radio"
-                    v-model="form.repairType"
-                    value="internal"
-                    class="w-5 h-5 text-primary-500"
-                  />
-                  <div class="flex-1">
-                    <div class="font-medium text-gray-800">资讯内部维修</div>
-                    <div class="text-sm text-gray-500">设备送修至资讯维修区，工程师统一处理</div>
-                  </div>
-                  <Server class="w-6 h-6 text-gray-400" />
-                </label>
-                <label 
-                  :class="[
-                    'flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all duration-300',
-                    form.repairType === 'remote' 
-                      ? 'border-primary-500 bg-primary-50' 
-                      : 'border-gray-200 hover:border-gray-300 bg-white'
-                  ]"
-                >
-                  <input
-                    type="radio"
-                    v-model="form.repairType"
-                    value="remote"
-                    class="w-5 h-5 text-primary-500"
-                  />
-                  <div class="flex-1">
-                    <div class="font-medium text-gray-800">资讯委外维修</div>
-                    <div class="text-sm text-gray-500">资讯采购协助外送维修处理</div>
-                  </div>
-                  <Monitor class="w-6 h-6 text-gray-400" />
-                </label>
-              </div>
-              <p v-if="errors.repairType" class="text-red-500 text-sm mt-2">{{ errors.repairType }}</p>
-            </div>
-
-            <div class="form-group mt-5">
-              <label class="form-label">
                 <span class="text-red-500">*</span> 消息通知方式（至少选一项）
               </label>
               <div class="flex flex-wrap gap-3 mt-3">
@@ -412,7 +363,6 @@ const form = reactive({
   projectId: '',
   area: '',
   description: '',
-  repairType: '' as 'internal' | 'remote' | '',
   notificationChannels: [] as ('extension' | 'email' | 'webex')[],
   priority: '' as 'normal' | 'urgent' | '',
   remark: '',
@@ -468,14 +418,11 @@ const validateField = (field: string) => {
     case 'description':
       if (!form.description.trim()) {
         errors[field] = '请填写故障描述'
-      } else if (form.description.length < 10) {
-        errors[field] = '故障描述至少需要10个字符'
+      } else if (form.description.length < 5) {
+        errors[field] = '故障描述至少需要5个字符'
       } else if (form.description.length > 500) {
         errors[field] = '故障描述不能超过500个字符'
       }
-      break
-    case 'repairType':
-      if (!form.repairType) errors[field] = '请选择维修场景类型'
       break
     case 'notificationChannels':
       if (form.notificationChannels.length === 0) errors[field] = '请至少选择一种通知方式'
@@ -489,7 +436,7 @@ const validateField = (field: string) => {
 const validateAll = (): boolean => {
   let isValid = true
   
-  const fields = ['applicantName', 'extension', 'email', 'assetNo', 'deviceType', 'projectId', 'area', 'description', 'repairType', 'notificationChannels', 'priority']
+  const fields = ['applicantName', 'extension', 'email', 'assetNo', 'deviceType', 'projectId', 'area', 'description', 'notificationChannels', 'priority']
   fields.forEach(field => {
     validateField(field)
     if (errors[field]) isValid = false
@@ -514,7 +461,7 @@ const handleSubmit = async () => {
       deviceType: form.deviceType,
       projectId: form.projectId,
       description: form.description,
-      repairType: form.repairType || 'internal',
+      repairType: 'internal',
       notificationChannels: form.notificationChannels,
       priority: form.priority || 'normal',
       area: form.area,
@@ -546,7 +493,6 @@ const resetForm = () => {
   form.projectId = ''
   form.area = ''
   form.description = ''
-  form.repairType = ''
   form.notificationChannels = []
   form.priority = ''
   form.remark = ''

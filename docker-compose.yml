@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  it-repair-system:
+    build: .
+    container_name: it-repair-system
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+      - "${HTTPS_PORT:-8443}:8443"
+    volumes:
+      - ./data:/app/data
+      - ./certs:/app/certs
+    environment:
+      - NODE_ENV=production
+      - HTTP_PORT=8080
+      - HTTPS_PORT=8443
+      - JWT_SECRET=${JWT_SECRET}
+      - STATIC_PATH=/app/dist
+      - CERT_PATH=/app/certs
+      - DATA_PATH=/app/data
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/home/stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

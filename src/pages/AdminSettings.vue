@@ -53,7 +53,7 @@
               数据统计
             </a>
           </li>
-          <li v-if="userRole !== 'operator'">
+          <li>
             <a href="/admin/settings" class="flex items-center gap-3 px-4 py-3 bg-darkblue text-white rounded-xl shadow-md">
               <Settings class="w-5 h-5" />
               系统设置
@@ -295,7 +295,7 @@ import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
-// 获取当前用户角色，运维员(operator)隐藏系统设置
+// 获取当前用户角色
 const userRole = computed(() => {
   try {
     const user = JSON.parse(localStorage.getItem('user') || '{}')

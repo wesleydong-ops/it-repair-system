@@ -42,8 +42,8 @@
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <section class="text-center mb-16 fade-in">
-        <div class="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-3xl shadow-xl mb-6 pulse-ring">
-          <ShieldCheck class="w-12 h-12 text-white" />
+        <div class="inline-flex items-center justify-center w-40 h-40 bg-white rounded-3xl shadow-xl mb-6 p-3">
+          <canvas ref="qrCanvas" class="w-full h-full"></canvas>
         </div>
         <h1 class="text-4xl sm:text-5xl font-bold text-darkblue mb-4">
           IT设备扫码报修系统
@@ -68,9 +68,9 @@
           <div class="w-16 h-16 bg-gradient-to-br from-primary-100 to-primary-200 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Ticket class="w-8 h-8 text-primary-600" />
           </div>
-          <h3 class="text-lg font-semibold text-gray-800 mb-2">今日工单</h3>
-          <p class="text-4xl font-bold text-gradient">{{ todayOrders }}</p>
-          <p class="text-sm text-gray-500 mt-1">较昨日 +12%</p>
+          <h3 class="text-lg font-semibold text-gray-800 mb-2">本月工单</h3>
+          <p class="text-4xl font-bold text-gradient">{{ monthlyOrders }}</p>
+          <p class="text-sm text-gray-500 mt-1">{{ currentMonthLabel }}</p>
         </div>
         <div class="card text-center card-hover">
           <div class="w-16 h-16 bg-gradient-to-br from-secondary-100 to-secondary-200 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -78,7 +78,7 @@
           </div>
           <h3 class="text-lg font-semibold text-gray-800 mb-2">本月结案率</h3>
           <p class="text-4xl font-bold text-gradient">{{ completionRate }}%</p>
-          <p class="text-sm text-gray-500 mt-1">目标 95%</p>
+          <p class="text-sm text-gray-500 mt-1">已完成 {{ completedCount }} 单</p>
         </div>
         <div class="card text-center card-hover">
           <div class="w-16 h-16 bg-gradient-to-br from-orange-100 to-orange-200 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -86,7 +86,7 @@
           </div>
           <h3 class="text-lg font-semibold text-gray-800 mb-2">平均维修时长</h3>
           <p class="text-4xl font-bold text-orange-500">{{ avgDuration }}<span class="text-lg">小时</span></p>
-          <p class="text-sm text-gray-500 mt-1">优于行业标准</p>
+          <p class="text-sm text-gray-500 mt-1">本月平均</p>
         </div>
         <div class="card text-center card-hover">
           <div class="w-16 h-16 bg-gradient-to-br from-purple-100 to-purple-200 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -94,7 +94,7 @@
           </div>
           <h3 class="text-lg font-semibold text-gray-800 mb-2">在线工程师</h3>
           <p class="text-4xl font-bold text-purple-500">{{ onlineEngineers }}</p>
-          <p class="text-sm text-gray-500 mt-1">A区 5人 / CK区 3人</p>
+          <p class="text-sm text-gray-500 mt-1">A区 {{ engineerAreaA }}人 / CK区 {{ engineerAreaCK }}人</p>
         </div>
       </section>
 
@@ -244,10 +244,10 @@
             </div>
           </div>
           <div class="flex-shrink-0">
-            <div class="w-32 h-32 bg-white rounded-2xl flex items-center justify-center shadow-xl p-2">
-              <canvas ref="qrCanvas" class="w-full h-full"></canvas>
+            <div class="w-32 h-32 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-xl">
+              <ShieldCheck class="w-20 h-20 text-white" />
             </div>
-            <p class="text-center text-white/80 text-sm mt-3">扫码快速报修</p>
+            <p class="text-center text-white/80 text-sm mt-3">IT设备扫码报修系统</p>
           </div>
         </div>
       </section>
@@ -277,7 +277,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import QRCode from 'qrcode'
 import { 
   Wrench, Plus, FileText, ClipboardList, Ticket, CheckCircle, Clock, Users, 
@@ -298,27 +298,65 @@ onMounted(() => {
       color: { dark: '#1e3a5f', light: '#ffffff' }
     })
   }
+  
+  // 加载统计数据
+  loadHomeData()
 })
 
-const todayOrders = ref(12)
-const completionRate = ref(94)
-const avgDuration = ref(2.5)
-const onlineEngineers = ref(8)
+const monthlyOrders = ref(0)
+const completedCount = ref(0)
+const completionRate = ref(0)
+const avgDuration = ref(0)
+const onlineEngineers = ref(0)
+const engineerAreaA = ref(0)
+const engineerAreaCK = ref(0)
+
+// 当前月份标签
+const currentMonthLabel = computed(() => {
+  const now = new Date()
+  return `${now.getFullYear()}年${now.getMonth() + 1}月`
+})
 
 const areaStats = ref({
-  A: 45,
-  CK: 38
+  A: 0,
+  CK: 0
 })
 
-const recentOrders = ref([
-  { id: '1', orderNo: 'WO-20240115-001', applicantName: '张三', deviceType: '笔记本电脑', status: 'pending' },
-  { id: '2', orderNo: 'WO-20240115-002', applicantName: '李四', deviceType: '台式电脑', status: 'accepted' },
-  { id: '3', orderNo: 'WO-20240115-003', applicantName: '王五', deviceType: '打印机', status: 'processing' },
-  { id: '4', orderNo: 'WO-20240115-004', applicantName: '赵六', deviceType: '显示器', status: 'completed' }
-])
+const recentOrders = ref<Array<{
+  id: string
+  orderNo: string
+  applicantName: string
+  deviceType: string
+  status: string
+}>>([])
+
+// 加载首页数据
+const loadHomeData = async () => {
+  try {
+    // 使用公开接口获取首页统计数据
+    const response = await fetch('/api/home/stats')
+    const result = await response.json()
+    
+    if (result.success && result.data) {
+      monthlyOrders.value = result.data.monthlyOrders || 0
+      completedCount.value = result.data.completedCount || 0
+      completionRate.value = result.data.completionRate || 0
+      avgDuration.value = result.data.avgDuration || 0
+      onlineEngineers.value = result.data.engineerStats?.total || 0
+      engineerAreaA.value = result.data.engineerStats?.A || 0
+      engineerAreaCK.value = result.data.engineerStats?.CK || 0
+      areaStats.value = result.data.areaStats || { A: 0, CK: 0 }
+      
+      // 最近3笔工单
+      recentOrders.value = result.data.recentOrders || []
+    }
+  } catch (error) {
+    console.error('加载首页数据失败:', error)
+  }
+}
 
 const getAreaPercentage = (area: string) => {
   const total = areaStats.value.A + areaStats.value.CK
-  return Math.round((areaStats.value[area as keyof typeof areaStats.value] / total) * 100)
+  return total > 0 ? Math.round((areaStats.value[area as keyof typeof areaStats.value] / total) * 100) : 0
 }
 </script>

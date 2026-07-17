@@ -242,11 +242,7 @@ const saveWorkorders = (orders: WorkOrder[]): void => {
   saveJSON(WORKORDERS_FILE, orders, '工单')
 }
 
-const defaultWorkorders = [
-  { id: '1', orderNo: 'WO-20240115-001', applicantName: '张三', department: '研发部', location: 'A栋3楼301室', extension: '8001', email: 'zhangsan@company.com', webexId: 'zhangsan', assetNo: 'IT-2024-001', deviceType: '笔记本电脑', deviceLocation: 'A区-2楼', projectId: '1', projectName: '系统故障', description: '电脑无法开机', repairType: 'internal', notificationChannels: ['email', 'webex'], priority: 'urgent', status: 'pending', area: 'A', engineerId: '', engineerName: '', statusLog: '', createTime: '2024-01-15 14:30:00', updateTime: '2024-01-15 14:30:00', externalReason: '', externalParts: '', externalCost: 0, externalCompany: '', repairRecord: '', faultReason: '', solution: '' },
-  { id: '2', orderNo: 'WO-20240115-002', applicantName: '李四', department: '市场部', location: 'B栋2楼201室', extension: '8002', email: 'lisi@company.com', webexId: 'lisi', assetNo: 'IT-2024-002', deviceType: '台式电脑', deviceLocation: 'CK区-1楼', projectId: '2', projectName: '网络故障', description: '网络连接不稳定', repairType: 'remote', notificationChannels: ['extension'], priority: 'normal', status: 'accepted', area: 'CK', engineerId: '3', engineerName: '李工', statusLog: '', createTime: '2024-01-15 13:20:00', updateTime: '2024-01-15 13:30:00', externalReason: '', externalParts: '', externalCost: 0, externalCompany: '', repairRecord: '', faultReason: '', solution: '' },
-  { id: '3', orderNo: 'WO-20240115-003', applicantName: '王五', department: '财务部', location: 'A栋1楼101室', extension: '8003', email: 'wangwu@company.com', webexId: 'wangwu', assetNo: 'IT-2024-003', deviceType: '打印机', deviceLocation: 'A区-1楼', projectId: '3', projectName: '硬件故障', description: '打印机卡纸', repairType: 'internal', notificationChannels: ['email'], priority: 'normal', status: 'processing', area: 'A', engineerId: '2', engineerName: '陈工', statusLog: '', createTime: '2024-01-15 11:45:00', updateTime: '2024-01-15 12:00:00', externalReason: '', externalParts: '', externalCost: 0, externalCompany: '', repairRecord: '', faultReason: '', solution: '' }
-]
+const defaultWorkorders: WorkOrder[] = []
 
 const workorders = loadWorkorders()
 
@@ -300,13 +296,7 @@ interface User {
 }
 
 const defaultUsers: User[] = [
-  { id: '1', username: 'admin', password: bcrypt.hashSync('admin123', 10), name: '管理员', role: 'admin', area: '', email: 'admin@foxlink.com', webexId: 'admin', isActive: true, createTime: '2024-01-01 09:00:00' },
-  { id: '2', username: 'chen', password: bcrypt.hashSync('123456', 10), name: '陈工', role: 'engineer', area: 'A', email: 'chen@foxlink.com', webexId: 'chen', isActive: true, createTime: '2024-01-02 10:00:00' },
-  { id: '3', username: 'li', password: bcrypt.hashSync('123456', 10), name: '李工', role: 'engineer', area: 'CK', email: 'li@foxlink.com', webexId: 'li', isActive: true, createTime: '2024-01-03 11:00:00' },
-  { id: '4', username: 'wang', password: bcrypt.hashSync('123456', 10), name: '王工', role: 'engineer', area: 'A', email: 'wang@foxlink.com', webexId: 'wang', isActive: true, createTime: '2024-01-04 14:00:00' },
-  { id: '5', username: 'zhao', password: bcrypt.hashSync('123456', 10), name: '赵工', role: 'engineer', area: 'CK', email: 'zhao@foxlink.com', webexId: 'zhao', isActive: false, createTime: '2024-01-05 15:00:00' },
-  { id: '6', username: 'operator', password: bcrypt.hashSync('123456', 10), name: '运维员', role: 'operator', area: '', email: 'operator@foxlink.com', webexId: 'operator', isActive: true, createTime: '2024-01-06 09:00:00' },
-  { id: '7', username: 'purchaser', password: bcrypt.hashSync('123456', 10), name: '采购专员', role: 'purchaser', area: '', email: 'purchaser@foxlink.com', webexId: 'purchaser', isActive: true, createTime: '2024-01-07 10:00:00' }
+  { id: '1', username: 'admin', password: bcrypt.hashSync('admin123', 10), name: '管理员', role: 'admin', area: '', email: 'admin@foxlink.com', webexId: 'admin', isActive: true, createTime: '2024-01-01 09:00:00' }
 ]
 
 const loadUsers = (): User[] => {
@@ -568,17 +558,18 @@ app.post('/api/workorder/submit', async (req, res) => {
   let assignedEngineerName = ''
   let orderStatus = 'pending' // 保持 pending 状态，允许工程师抢单
 
-  const matchedGroup = groups.find(g => g.area === area && g.isActive)
+  const matchedGroup = groups.find(g => String(g.area).trim() === String(area).trim() && g.isActive)
   
   if (matchedGroup && matchedGroup.members.length > 0) {
     // 获取组内活跃工程师
     const activeMembers = matchedGroup.members.filter(m => m.isActive)
     
     if (activeMembers.length > 0) {
-      // 优化：单次遍历统计所有工程师的工作量，而不是对每个工程师遍历一次
+      // 优化：单次遍历统计所有工程师的工作量
+      // 包含已接单、处理中、以及已分配但未接单的 pending 工单
       const engineerLoad = new Map<string, number>()
       for (const order of workorders) {
-        if (order.engineerId && (order.status === 'accepted' || order.status === 'processing')) {
+        if (order.engineerId && (order.status === 'accepted' || order.status === 'processing' || order.status === 'pending')) {
           engineerLoad.set(order.engineerId, (engineerLoad.get(order.engineerId) || 0) + 1)
         }
       }
@@ -685,6 +676,76 @@ app.get('/api/workorder/list', authenticateToken, (req, res) => {
     success: true,
     data: matched.slice(start, start + Number(size)),
     total: matched.length
+  })
+})
+
+// 首页公开接口（无需认证）
+app.get('/api/home/stats', (_req, res) => {
+  // 按自然月统计（当月）
+  const now = new Date()
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  let monthlyCount = 0
+  let monthlyCompleted = 0
+  let areaA = 0
+  let areaCK = 0
+  let totalDuration = 0
+  let durationCount = 0
+
+  for (const order of workorders) {
+    if (!order.createTime) continue
+    const orderMonth = order.createTime.substring(0, 7)
+    if (orderMonth !== currentMonth) continue
+
+    monthlyCount++
+    if (order.area === 'A') areaA++
+    if (order.area === 'CK') areaCK++
+    if (order.status === 'completed' || order.status === 'closed') {
+      monthlyCompleted++
+      // 计算维修时长（创建时间到更新时间的小时差）
+      if (order.updateTime) {
+        const create = new Date(order.createTime).getTime()
+        const update = new Date(order.updateTime).getTime()
+        if (!isNaN(create) && !isNaN(update)) {
+          totalDuration += (update - create) / (1000 * 60 * 60)
+          durationCount++
+        }
+      }
+    }
+  }
+
+  // 最近3笔工单
+  const recent = [...workorders]
+    .sort((a, b) => {
+      const dateA = new Date(a.createTime).getTime()
+      const dateB = new Date(b.createTime).getTime()
+      return dateB - dateA
+    })
+    .slice(0, 3)
+    .map(o => ({
+      id: o.id,
+      orderNo: o.orderNo,
+      applicantName: o.applicantName,
+      deviceType: o.deviceType,
+      status: o.status
+    }))
+
+  // 统计各区域工程师人数
+  const engineers = users.filter(u => u.role === 'engineer' && u.isActive)
+  const engineerAreaA = engineers.filter(u => u.area === 'A').length
+  const engineerAreaCK = engineers.filter(u => u.area === 'CK').length
+
+  res.json({
+    success: true,
+    data: {
+      monthlyOrders: monthlyCount,
+      completedCount: monthlyCompleted,
+      completionRate: monthlyCount > 0 ? Math.round((monthlyCompleted / monthlyCount) * 100) : 0,
+      avgDuration: durationCount > 0 ? Math.round((totalDuration / durationCount) * 10) / 10 : 0,
+      areaStats: { A: areaA, CK: areaCK },
+      engineerStats: { A: engineerAreaA, CK: engineerAreaCK, total: engineers.length },
+      recentOrders: recent
+    }
   })
 })
 
@@ -921,11 +982,8 @@ app.post('/api/workorder/:id/external/reject', authenticateToken, (req, res) => 
     return res.status(400).json({ success: false, message: '工单状态不允许驳回' })
   }
   
-  order.status = 'processing'
+  order.status = 'external_rejected'
   order.externalReason = reason || '外修申请被驳回'
-  order.externalParts = ''
-  order.externalCost = 0
-  order.externalCompany = ''
   order.updateTime = new Date().toLocaleString('zh-CN')
   saveWorkorders(workorders)
   
@@ -1140,17 +1198,33 @@ app.delete('/api/admin/projects/:id', authenticateToken, requireRole('admin'), (
   res.json({ success: true, message: '项目删除成功' })
 })
 
-app.get('/api/admin/statistics', authenticateToken, requireRole('admin'), (_req, res) => {
+app.get('/api/admin/statistics', authenticateToken, requireRole('admin'), (req, res) => {
+  // 支持按月筛选，默认当月；传 all 表示全部
+  const monthParam = (req.query.month as string) || ''
+  const now = new Date()
+  const targetMonth = monthParam === 'all' ? '' : (monthParam || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
+
+  // 按月份过滤工单
+  const filtered = targetMonth
+    ? workorders.filter(o => o.createTime && o.createTime.substring(0, 7) === targetMonth)
+    : workorders
+
   // 单次遍历计算所有统计数据
   let pendingCount = 0
   let completedCount = 0
+  let externalCount = 0
   const areaStats = new Map<string, { orderCount: number; completedCount: number }>()
-  
-  for (const order of workorders) {
+  const faultTypeMap = new Map<string, number>()
+  const trendMap = new Map<string, number>()
+  let totalDuration = 0
+  let durationCount = 0
+
+  for (const order of filtered) {
     // 统计状态
     if (order.status === 'pending') pendingCount++
     if (order.status === 'completed' || order.status === 'closed') completedCount++
-    
+    if (order.status === 'external_pending' || order.status === 'external_processing' || order.status === 'external_rejected') externalCount++
+
     // 统计区域
     const area = order.area || 'unknown'
     const stats = areaStats.get(area) || { orderCount: 0, completedCount: 0 }
@@ -1159,23 +1233,57 @@ app.get('/api/admin/statistics', authenticateToken, requireRole('admin'), (_req,
       stats.completedCount++
     }
     areaStats.set(area, stats)
+
+    // 统计故障类型
+    if (order.projectName) {
+      faultTypeMap.set(order.projectName, (faultTypeMap.get(order.projectName) || 0) + 1)
+    }
+
+    // 统计趋势（按日期）
+    if (order.createTime) {
+      const date = order.createTime.split(' ')[0]
+      trendMap.set(date, (trendMap.get(date) || 0) + 1)
+    }
+
+    // 计算维修时长
+    if (order.createTime && order.updateTime && (order.status === 'completed' || order.status === 'closed')) {
+      const create = new Date(order.createTime).getTime()
+      const update = new Date(order.updateTime).getTime()
+      if (!isNaN(create) && !isNaN(update)) {
+        totalDuration += (update - create) / (1000 * 60 * 60)
+        durationCount++
+      }
+    }
   }
-  
-  // 计算工程师统计（单次遍历）
-  const engineerStatsMap = new Map<string, { acceptedCount: number; completedCount: number }>()
-  for (const order of workorders) {
+
+  const avgDuration = durationCount > 0 ? Math.round((totalDuration / durationCount) * 10) / 10 : 0
+
+  // 计算工程师统计
+  const engineerStatsMap = new Map<string, { acceptedCount: number; completedCount: number; totalDuration: number; durationCount: number; urgentCount: number }>()
+  for (const order of filtered) {
     if (order.engineerId) {
-      const stats = engineerStatsMap.get(order.engineerId) || { acceptedCount: 0, completedCount: 0 }
+      const stats = engineerStatsMap.get(order.engineerId) || { acceptedCount: 0, completedCount: 0, totalDuration: 0, durationCount: 0, urgentCount: 0 }
       if (order.status !== 'pending') {
         stats.acceptedCount++
       }
       if (order.status === 'completed' || order.status === 'closed') {
         stats.completedCount++
+        if (order.createTime && order.updateTime) {
+          const create = new Date(order.createTime).getTime()
+          const update = new Date(order.updateTime).getTime()
+          if (!isNaN(create) && !isNaN(update)) {
+            stats.totalDuration += (update - create) / (1000 * 60 * 60)
+            stats.durationCount++
+          }
+        }
+      }
+      if (order.priority === 'urgent') {
+        stats.urgentCount++
       }
       engineerStatsMap.set(order.engineerId, stats)
     }
   }
-  
+
   // 转换为数组格式
   const engineerStats = Array.from(engineerStatsMap.entries()).map(([engineerId, stats]) => ({
     engineerId,
@@ -1184,28 +1292,40 @@ app.get('/api/admin/statistics', authenticateToken, requireRole('admin'), (_req,
     acceptedCount: stats.acceptedCount,
     completedCount: stats.completedCount,
     completionRate: stats.acceptedCount > 0 ? Math.round((stats.completedCount / stats.acceptedCount) * 100) : 0,
-    avgDuration: 2.3,
-    urgentCount: 0
+    avgDuration: stats.durationCount > 0 ? Math.round((stats.totalDuration / stats.durationCount) * 10) / 10 : 0,
+    urgentCount: stats.urgentCount
   }))
-  
+
   // 转换区域统计
   const areaStatsArray = Array.from(areaStats.entries()).map(([area, stats]) => ({
     area,
     orderCount: stats.orderCount,
     completionRate: stats.orderCount > 0 ? Math.round((stats.completedCount / stats.orderCount) * 100) : 0
   }))
-  
+
+  // 转换故障类型统计
+  const faultTypeData = Array.from(faultTypeMap.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+
+  // 转换趋势数据（按日期排序）
+  const trendData = Array.from(trendMap.entries())
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
   res.json({
     success: true,
     data: {
-      totalOrders: workorders.length,
+      totalOrders: filtered.length,
       completedOrders: completedCount,
       pendingOrders: pendingCount,
-      averageDuration: 2.3,
-      externalOrders: workorders.filter(o => o.repairType === 'external').length,
-      completionRate: workorders.length > 0 ? Math.round((completedCount / workorders.length) * 100) : 0,
+      averageDuration: avgDuration,
+      externalOrders: externalCount,
+      completionRate: filtered.length > 0 ? Math.round((completedCount / filtered.length) * 100) : 0,
       engineerStats,
-      areaStats: areaStatsArray
+      areaStats: areaStatsArray,
+      trendData,
+      faultTypeData
     }
   })
 })

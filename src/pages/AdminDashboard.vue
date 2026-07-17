@@ -20,16 +20,17 @@
             </div>
           </div>
           <div class="mt-4 pt-4 border-t border-gray-100">
-            <p class="text-green-500 text-sm flex items-center">
-              <TrendingUp class="w-4 h-4 mr-1" />
-              较上月 +12%
+            <p :class="lastMonthCompare.trendClass + ' text-sm flex items-center'">
+              <TrendingUp class="w-4 h-4 mr-1" v-if="lastMonthCompare.diff >= 0" />
+              <TrendingDown class="w-4 h-4 mr-1" v-else />
+              {{ lastMonthCompare.text }}
             </p>
           </div>
         </div>
         <div class="card card-hover">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-gray-500 text-sm">结案率</p>
+              <p class="text-gray-500 text-sm">本月结案率</p>
               <p class="text-3xl font-bold text-gradient mt-1">{{ stats.completionRate }}%</p>
             </div>
             <div class="w-14 h-14 bg-gradient-to-br from-secondary-100 to-secondary-200 rounded-2xl flex items-center justify-center">
@@ -37,16 +38,16 @@
             </div>
           </div>
           <div class="mt-4 pt-4 border-t border-gray-100">
-            <p class="text-green-500 text-sm flex items-center">
-              <TrendingUp class="w-4 h-4 mr-1" />
-              目标 95%
+            <p class="text-gray-500 text-sm flex items-center">
+              <FileText class="w-4 h-4 mr-1" />
+              已完成 {{ stats.completedOrders }} 单
             </p>
           </div>
         </div>
         <div class="card card-hover">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-gray-500 text-sm">平均时长</p>
+              <p class="text-gray-500 text-sm">平均维修时长</p>
               <p class="text-3xl font-bold text-orange-500 mt-1">{{ stats.avgDuration }}<span class="text-lg">h</span></p>
             </div>
             <div class="w-14 h-14 bg-gradient-to-br from-orange-100 to-orange-200 rounded-2xl flex items-center justify-center">
@@ -54,9 +55,9 @@
             </div>
           </div>
           <div class="mt-4 pt-4 border-t border-gray-100">
-            <p class="text-green-500 text-sm flex items-center">
-              <TrendingUp class="w-4 h-4 mr-1" />
-              优于行业标准
+            <p class="text-gray-500 text-sm flex items-center">
+              <Clock class="w-4 h-4 mr-1" />
+              本月平均
             </p>
           </div>
         </div>
@@ -73,7 +74,7 @@
           <div class="mt-4 pt-4 border-t border-gray-100">
             <p class="text-gray-500 text-sm flex items-center">
               <FileText class="w-4 h-4 mr-1" />
-              占比 5.1%
+              占比 {{ externalRate }}%
             </p>
           </div>
         </div>
@@ -251,7 +252,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { Ticket, CheckCircle, Clock, ExternalLink, Activity, TrendingUp, Eye } from 'lucide-vue-next'
+import { Ticket, CheckCircle, Clock, ExternalLink, Activity, TrendingUp, TrendingDown, Eye } from 'lucide-vue-next'
 import { statisticsApi, workOrderApi, authApi } from '../api'
 import { useRouter } from 'vue-router'
 import AdminSidebar from '../components/AdminSidebar.vue'
@@ -262,7 +263,23 @@ const stats = ref({
   monthlyOrders: 0,
   completionRate: 0,
   avgDuration: 0,
-  externalOrders: 0
+  externalOrders: 0,
+  completedOrders: 0
+})
+
+// 上月对比数据
+const lastMonthCompare = ref({
+  currentMonth: 0,
+  lastMonth: 0,
+  diff: 0,
+  text: '',
+  trendClass: ''
+})
+
+// 外修占比
+const externalRate = computed(() => {
+  if (stats.value.monthlyOrders === 0) return 0
+  return Math.round((stats.value.externalOrders / stats.value.monthlyOrders) * 100)
 })
 
 const statusDistribution = ref({
@@ -289,18 +306,64 @@ const getStatusPercentage = (status: string) => {
   return Math.round((statusDistribution.value[status as keyof typeof statusDistribution.value] / totalOrders.value) * 100)
 }
 
+// 获取当前月份字符串（YYYY-MM）
+const getCurrentMonth = () => {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+// 获取上个月份字符串（YYYY-MM）
+const getLastMonth = () => {
+  const now = new Date()
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  return `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`
+}
+
 const loadStatistics = async () => {
   try {
-    const response = await statisticsApi.get()
+    // 加载当月数据
+    const currentMonth = getCurrentMonth()
+    const response = await statisticsApi.get({ month: currentMonth })
     const data = response.data.data
     
     stats.value.monthlyOrders = data.totalOrders
-    stats.value.completionRate = data.totalOrders > 0 ? Math.round((data.completedOrders / data.totalOrders) * 100) : 0
+    stats.value.completionRate = data.completionRate
     stats.value.avgDuration = data.averageDuration || 0
-    stats.value.externalOrders = data.totalOrders - data.completedOrders - data.pendingOrders
+    stats.value.externalOrders = data.externalOrders
+    stats.value.completedOrders = data.completedOrders
     
     statusDistribution.value.pending = data.pendingOrders
     statusDistribution.value.completed = data.completedOrders
+    
+    // 加载上月数据用于对比
+    const lastMonth = getLastMonth()
+    const lastResponse = await statisticsApi.get({ month: lastMonth })
+    const lastData = lastResponse.data.data
+    
+    const currentCount = data.totalOrders
+    const lastCount = lastData.totalOrders
+    const diff = currentCount - lastCount
+    
+    lastMonthCompare.value.currentMonth = currentCount
+    lastMonthCompare.value.lastMonth = lastCount
+    lastMonthCompare.value.diff = diff
+    
+    if (lastCount === 0) {
+      lastMonthCompare.value.text = currentCount > 0 ? `新增 ${currentCount} 单` : '暂无数据'
+      lastMonthCompare.value.trendClass = currentCount > 0 ? 'text-green-500' : 'text-gray-500'
+    } else {
+      const percent = Math.round((diff / lastCount) * 100)
+      if (diff > 0) {
+        lastMonthCompare.value.text = `较上月 +${percent}%`
+        lastMonthCompare.value.trendClass = 'text-green-500'
+      } else if (diff < 0) {
+        lastMonthCompare.value.text = `较上月 ${percent}%`
+        lastMonthCompare.value.trendClass = 'text-red-500'
+      } else {
+        lastMonthCompare.value.text = '与上月持平'
+        lastMonthCompare.value.trendClass = 'text-gray-500'
+      }
+    }
     
     // 计算工程师排名
     if (data.engineerStats && data.engineerStats.length > 0) {

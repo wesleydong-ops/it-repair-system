@@ -10,6 +10,10 @@
             </div>
           </div>
           <nav class="flex items-center gap-4">
+            <router-link to="/workorders" class="text-gray-600 hover:text-primary-600 transition-colors flex items-center gap-1">
+              <ClipboardList class="w-5 h-5" />
+              工单列表
+            </router-link>
             <span class="text-gray-600 flex items-center gap-2">
               <User class="w-5 h-5" />
               {{ user.name }} · {{ user.area }}区
@@ -154,11 +158,14 @@
                 <td class="py-3 px-4 text-sm text-gray-500">{{ order.updateTime }}</td>
                 <td class="py-3 px-4">
                   <div class="flex gap-2">
+                    <button v-if="order.status === 'pending'" @click.stop="handleAcceptOrder(order)" class="btn-sm-primary">接单</button>
                     <button v-if="order.status === 'accepted'" @click.stop="handleStartProcess(order)" class="btn-sm-primary">开始处理</button>
                     <button v-if="order.status === 'processing'" @click.stop="showCompleteModal(order)" class="btn-sm-primary">完成维修</button>
                     <button v-if="order.status === 'processing'" @click.stop="showExternalModal(order)" class="btn-sm-outline">外修申请</button>
                     <button v-if="order.status === 'external_pending'" @click.stop="handleStartExternal(order)" class="btn-sm-primary">开始外修</button>
                     <button v-if="order.status === 'external_processing'" @click.stop="showExternalCompleteModal(order)" class="btn-sm-primary">完成外修</button>
+                    <button v-if="order.status === 'external_rejected'" @click.stop="showExternalModal(order)" class="btn-sm-outline">重新申请外修</button>
+                    <button v-if="order.status === 'external_rejected'" @click.stop="showCompleteModal(order)" class="btn-sm-primary">完成维修</button>
                     <button @click.stop="viewOrderDetail(order.id)" class="btn-sm-outline">详情</button>
                   </div>
                 </td>
@@ -301,7 +308,7 @@ const externalCompleteForm = reactive({
 })
 
 const pendingOrders = computed(() => {
-  return orders.value.filter(o => o.status === 'pending')
+  return orders.value.filter(o => o.status === 'pending' && o.area === user.value.area && o.engineerId !== user.value.id)
 })
 
 const myOrders = computed(() => {

@@ -68,37 +68,37 @@ const routes = [
     path: '/admin',
     name: 'AdminDashboard',
     component: AdminDashboard,
-    meta: { requiresAuth: true, role: ['admin', 'operator'] }
+    meta: { requiresAuth: true, role: 'admin' }
   },
   {
     path: '/admin/users',
     name: 'AdminUsers',
     component: AdminUsers,
-    meta: { requiresAuth: true, role: ['admin', 'operator'] }
+    meta: { requiresAuth: true, role: 'admin' }
   },
   {
     path: '/admin/groups',
     name: 'AdminGroups',
     component: AdminGroups,
-    meta: { requiresAuth: true, role: ['admin', 'operator'] }
+    meta: { requiresAuth: true, role: 'admin' }
   },
   {
     path: '/admin/projects',
     name: 'AdminProjects',
     component: AdminProjects,
-    meta: { requiresAuth: true, role: ['admin', 'operator'] }
+    meta: { requiresAuth: true, role: 'admin' }
   },
   {
     path: '/admin/workorders',
     name: 'AdminWorkOrders',
     component: AdminWorkOrders,
-    meta: { requiresAuth: true, role: ['admin', 'operator'] }
+    meta: { requiresAuth: true, role: 'admin' }
   },
   {
     path: '/admin/statistics',
     name: 'AdminStatistics',
     component: AdminStatistics,
-    meta: { requiresAuth: true, role: ['admin', 'operator'] }
+    meta: { requiresAuth: true, role: 'admin' }
   },
   {
     path: '/admin/settings',
@@ -119,7 +119,7 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth && !isLoggedIn) {
     const requiredRole = to.meta.role as string | string[]
     if (Array.isArray(requiredRole)) {
-      // 管理员页面：admin 或 operator 可以访问
+      // 管理员页面
       if (requiredRole.includes('admin')) {
         next('/admin/login')
       } else {
@@ -157,17 +157,6 @@ router.beforeEach((to, from, next) => {
         } else {
           next('/admin')
         }
-        return
-      }
-    } catch {}
-  }
-  
-  // 运维员(operator)禁止访问系统设置页面
-  if (to.path === '/admin/settings') {
-    try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}')
-      if (user.role === 'operator') {
-        next('/admin')
         return
       }
     } catch {}

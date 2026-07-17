@@ -83,10 +83,6 @@
                 <span class="text-gray-500">区域</span>
                 <span class="text-gray-800">{{ order.area === 'A' ? 'A区' : 'CK区' }}</span>
               </div>
-              <div class="flex justify-between items-center py-3 border-b border-gray-200">
-                <span class="text-gray-500">维修类型</span>
-                <span class="text-gray-800">{{ order.repairType === 'internal' ? '资讯内部维修' : '资讯委外维修' }}</span>
-              </div>
               <div class="flex justify-between items-center py-3">
                 <span class="text-gray-500">通知方式</span>
                 <span class="text-gray-800">{{ getNotificationText(order.notificationChannels) }}</span>
@@ -179,6 +175,14 @@
           <button v-if="order.status === 'external_processing'" @click="showExternalCompleteModal = true" class="btn-secondary">
             <CheckCircle class="w-4 h-4" />
             完成外修
+          </button>
+          <button v-if="order.status === 'external_rejected'" @click="showExternalModal = true" class="btn-outline">
+            <ExternalLink class="w-4 h-4" />
+            重新申请外修
+          </button>
+          <button v-if="order.status === 'external_rejected'" @click="showCompleteModal = true" class="btn-secondary">
+            <CheckCircle class="w-4 h-4" />
+            完成维修
           </button>
         </div>
       </div>
@@ -293,7 +297,7 @@ const order = ref({
   projectId: '',
   projectName: '',
   description: '',
-  repairType: 'internal' as 'internal' | 'remote',
+  repairType: 'internal',
   notificationChannels: [] as ('extension' | 'email' | 'webex')[],
   priority: 'normal' as 'normal' | 'urgent',
   status: 'pending' as 'pending' | 'accepted' | 'processing' | 'external_pending' | 'external_processing' | 'completed' | 'closed',
@@ -312,10 +316,46 @@ const order = ref({
   solution: ''
 })
 
-const statusLogs = ref([
-  { status: '工单创建', time: '2024-01-15 14:30:00', description: '系统已创建工单，等待工程师接单' },
-  { status: '自动派单', time: '2024-01-15 14:30:05', description: '系统根据设备位置自动分配至A区维修组' }
-])
+const statusLogs = computed(() => {
+  const logs: Array<{ status: string; time: string; description: string }> = []
+  
+  // 1. 工单创建记录
+  logs.push({
+    status: '工单创建',
+    time: order.value.createTime,
+    description: '系统已创建工单，等待工程师接单'
+  })
+  
+  // 2. 自动派单记录（如果有派单信息）
+  if (order.value.statusLog) {
+    logs.push({
+      status: '自动派单',
+      time: order.value.createTime,
+      description: order.value.statusLog
+    })
+  }
+  
+  // 3. 根据当前状态追加后续记录
+  const statusMap: Record<string, { status: string; description: string }> = {
+    accepted: { status: '工程师接单', description: `${order.value.engineerName || '工程师'}已接单，准备处理` },
+    processing: { status: '开始处理', description: `${order.value.engineerName || '工程师'}已开始处理` },
+    external_pending: { status: '外修申请', description: `工程师提交外修申请，等待采购审批` },
+    external_processing: { status: '外修处理中', description: `采购已审批，工程师开始外修` },
+    external_rejected: { status: '外修驳回', description: `采购驳回外修申请：${order.value.externalReason || '不符合外修条件'}` },
+    completed: { status: '维修完成', description: order.value.repairRecord || '工程师已完成维修' },
+    closed: { status: '工单结案', description: '工单已结案' }
+  }
+  
+  if (statusMap[order.value.status]) {
+    logs.push({
+      status: statusMap[order.value.status].status,
+      time: order.value.updateTime,
+      description: statusMap[order.value.status].description
+    })
+  }
+  
+  return logs
+})
 
 // 只有工程师和管理员才能看到操作按钮
 const showActionButtons = computed(() => {

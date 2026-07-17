@@ -155,7 +155,7 @@ import { getStatusClass, getStatusText } from '../utils/status'
 
 const router = useRouter()
 
-// 获取当前用户角色，运维员(operator)隐藏系统设置
+// 获取当前用户角色
 const userRole = computed(() => {
   try {
     const user = JSON.parse(localStorage.getItem('user') || '{}')

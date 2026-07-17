@@ -71,10 +71,7 @@ const menuItems = computed(() => {
     { path: '/admin/statistics', icon: BarChart3, label: '数据统计' }
   ]
   
-  // 运维员不显示系统设置
-  if (userRole.value !== 'operator') {
-    items.push({ path: '/admin/settings', icon: Settings, label: '系统设置' })
-  }
+  items.push({ path: '/admin/settings', icon: Settings, label: '系统设置' })
   
   return items
 })

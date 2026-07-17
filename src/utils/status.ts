@@ -7,6 +7,7 @@ export const getStatusClass = (status: string) => {
     processing: 'status-processing',
     external_pending: 'status-external-pending',
     external_processing: 'status-external-processing',
+    external_rejected: 'status-rejected',
     completed: 'status-completed',
     closed: 'status-closed'
   }
@@ -20,6 +21,7 @@ export const getStatusText = (status: string) => {
     processing: '处理中',
     external_pending: '外修待处理',
     external_processing: '外修处理中',
+    external_rejected: '外修已驳回',
     completed: '已完成',
     closed: '已结案'
   }

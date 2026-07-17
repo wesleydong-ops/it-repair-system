@@ -1,73 +1,6 @@
 <template>
   <div class="min-h-screen bg-gray-100">
-    <aside class="fixed left-0 top-0 h-screen w-64 bg-white shadow-lg">
-      <div class="p-4 border-b">
-        <button @click="goHome" class="flex items-center gap-2 text-gray-600 hover:text-primary-600 transition-colors w-full">
-          <Home class="w-4 h-4" />
-          返回首页
-        </button>
-      </div>
-      <div class="p-6 border-b">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center">
-            <Wrench class="w-6 h-6 text-white" />
-          </div>
-          <span class="font-bold text-gray-800">IT报修系统</span>
-        </div>
-      </div>
-      <nav class="p-4">
-        <ul class="space-y-2">
-          <li>
-            <a href="/admin" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <LayoutDashboard class="w-5 h-5" />
-              仪表盘
-            </a>
-          </li>
-          <li>
-            <a href="/admin/users" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Users class="w-5 h-5" />
-              用户管理
-            </a>
-          </li>
-          <li>
-            <a href="/admin/groups" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Users class="w-5 h-5" />
-              工程师分组
-            </a>
-          </li>
-          <li>
-            <a href="/admin/projects" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Settings class="w-5 h-5" />
-              维修项目
-            </a>
-          </li>
-          <li>
-            <a href="/admin/workorders" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <ClipboardList class="w-5 h-5" />
-              工单管理
-            </a>
-          </li>
-          <li>
-            <a href="/admin/statistics" class="flex items-center gap-3 px-4 py-3 bg-darkblue text-white rounded-xl shadow-md">
-              <BarChart3 class="w-5 h-5" />
-              数据统计
-            </a>
-          </li>
-          <li v-if="userRole !== 'operator'">
-            <a href="/admin/settings" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Settings class="w-5 h-5" />
-              系统设置
-            </a>
-          </li>
-        </ul>
-      </nav>
-      <div class="absolute bottom-0 left-0 right-0 p-4 border-t">
-        <button @click="handleLogout" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors w-full">
-          <LogOut class="w-5 h-5" />
-          退出登录
-        </button>
-      </div>
-    </aside>
+    <AdminSidebar activePath="/admin/statistics" />
 
     <main class="ml-64 p-8">
       <header class="mb-8">
@@ -78,12 +11,9 @@
           </div>
           <div class="flex items-center gap-4">
             <div class="flex items-center gap-2">
-              <label class="text-gray-600 font-medium">时间范围:</label>
-              <select v-model="timeRange" class="form-select w-32">
-                <option value="today">今日</option>
-                <option value="week">本周</option>
-                <option value="month">本月</option>
-                <option value="custom">自定义</option>
+              <label class="text-gray-600 font-medium">统计月份:</label>
+              <select v-model="selectedMonth" @change="loadStatistics" class="form-select w-40">
+                <option v-for="m in monthOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
               </select>
             </div>
             <button @click="exportData" class="btn-primary">
@@ -147,11 +77,8 @@
             <BarChart3 class="w-5 h-5 mr-2 text-primary" />
             工单趋势
           </h3>
-          <div class="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
-            <div class="text-center">
-              <BarChart3 class="w-16 h-16 text-gray-300 mx-auto mb-2" />
-              <p class="text-gray-400">图表展示区域</p>
-            </div>
+          <div class="h-64">
+            <canvas ref="trendChartRef"></canvas>
           </div>
         </div>
 
@@ -160,11 +87,8 @@
             <PieChartIcon class="w-5 h-5 mr-2 text-primary" />
             故障类型分布
           </h3>
-          <div class="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
-            <div class="text-center">
-              <PieChartIcon class="w-16 h-16 text-gray-300 mx-auto mb-2" />
-              <p class="text-gray-400">图表展示区域</p>
-            </div>
+          <div class="h-64">
+            <canvas ref="faultChartRef"></canvas>
           </div>
         </div>
       </div>
@@ -249,20 +173,20 @@
             </div>
             <div class="p-4 bg-gray-50 rounded-lg">
               <div class="flex items-center justify-between">
-                <span class="text-gray-600">最短维修时长</span>
-                <span class="font-bold text-gray-800">0.5 小时</span>
+                <span class="text-gray-600">总工单数</span>
+                <span class="font-bold text-gray-800">{{ statistics.totalOrders }} 单</span>
               </div>
             </div>
             <div class="p-4 bg-gray-50 rounded-lg">
               <div class="flex items-center justify-between">
-                <span class="text-gray-600">最长维修时长</span>
-                <span class="font-bold text-gray-800">24 小时</span>
+                <span class="text-gray-600">已完成工单</span>
+                <span class="font-bold text-green-600">{{ statistics.completedOrders }} 单</span>
               </div>
             </div>
             <div class="p-4 bg-gray-50 rounded-lg">
               <div class="flex items-center justify-between">
-                <span class="text-gray-600">超时工单数量</span>
-                <span class="font-bold text-orange-600">3 单</span>
+                <span class="text-gray-600">待处理工单</span>
+                <span class="font-bold text-orange-600">{{ statistics.pendingOrders }} 单</span>
               </div>
             </div>
           </div>
@@ -273,14 +197,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { Chart, registerables } from 'chart.js'
 import { Wrench, LayoutDashboard, Users, Settings, BarChart3, LogOut, Download, Ticket, CheckCircle, Clock, ExternalLink, PieChart as PieChartIcon, MapPin, ClipboardList, Home } from 'lucide-vue-next'
 import { authApi } from '../api'
 import { useRouter } from 'vue-router'
 
+Chart.register(...registerables)
+
 const router = useRouter()
 
-// 获取当前用户角色，运维员(operator)隐藏系统设置
+// 获取当前用户角色
 const userRole = computed(() => {
   try {
     const user = JSON.parse(localStorage.getItem('user') || '{}')
@@ -294,27 +221,191 @@ const goHome = () => {
   window.location.href = '/'
 }
 
-const timeRange = ref('month')
+const selectedMonth = ref('')
+const monthOptions = ref<Array<{ value: string; label: string }>>([])
+const isLoading = ref(false)
+
+// 生成月份选项（最近12个月 + 全部）
+const generateMonthOptions = () => {
+  const options = [{ value: 'all', label: '全部' }]
+  const now = new Date()
+  for (let i = 0; i < 12; i++) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+    const label = `${date.getFullYear()}年${date.getMonth() + 1}月`
+    options.push({ value, label })
+  }
+  // 默认选中当月
+  selectedMonth.value = options[1]?.value || 'all'
+  return options
+}
+
+const trendChartRef = ref<HTMLCanvasElement | null>(null)
+const faultChartRef = ref<HTMLCanvasElement | null>(null)
+let trendChart: Chart | null = null
+let faultChart: Chart | null = null
 
 const statistics = ref({
-  totalOrders: 156,
-  completedOrders: 144,
-  pendingOrders: 12,
-  averageDuration: 2.3,
-  externalOrders: 8
+  totalOrders: 0,
+  completedOrders: 0,
+  pendingOrders: 0,
+  averageDuration: 0,
+  externalOrders: 0,
+  completionRate: 0
 })
 
-const engineerStats = ref([
-  { engineerId: '1', name: '陈工', area: 'A', acceptedCount: 28, completedCount: 27, completionRate: 96, avgDuration: 1.8, urgentCount: 5 },
-  { engineerId: '2', name: '李工', area: 'CK', acceptedCount: 25, completedCount: 23, completionRate: 92, avgDuration: 2.1, urgentCount: 3 },
-  { engineerId: '3', name: '王工', area: 'A', acceptedCount: 23, completedCount: 21, completionRate: 91, avgDuration: 2.5, urgentCount: 4 },
-  { engineerId: '4', name: '赵工', area: 'CK', acceptedCount: 21, completedCount: 19, completionRate: 90, avgDuration: 2.8, urgentCount: 2 }
-])
+const engineerStats = ref<Array<{
+  engineerId: string
+  name: string
+  area: string
+  acceptedCount: number
+  completedCount: number
+  completionRate: number
+  avgDuration: number
+  urgentCount: number
+}>>([])
 
-const areaStats = ref([
-  { area: 'A', orderCount: 89, completionRate: 93 },
-  { area: 'CK', orderCount: 67, completionRate: 89 }
-])
+const areaStats = ref<Array<{
+  area: string
+  orderCount: number
+  completionRate: number
+}>>([])
+
+// 故障类型数据（从工单数据中统计）
+const faultTypeData = ref<Array<{ name: string; count: number }>>([])
+
+// 工单趋势数据（按日期统计）
+const trendData = ref<Array<{ date: string; count: number }>>([])
+
+// 加载统计数据
+const loadStatistics = async () => {
+  isLoading.value = true
+  try {
+    const monthParam = selectedMonth.value === 'all' ? 'all' : selectedMonth.value
+    const response = await fetch(`/api/admin/statistics?month=${monthParam}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+    const result = await response.json()
+    if (result.success) {
+      statistics.value = {
+        totalOrders: result.data.totalOrders || 0,
+        completedOrders: result.data.completedOrders || 0,
+        pendingOrders: result.data.pendingOrders || 0,
+        averageDuration: result.data.averageDuration || 0,
+        externalOrders: result.data.externalOrders || 0,
+        completionRate: result.data.completionRate || 0
+      }
+      engineerStats.value = result.data.engineerStats || []
+      areaStats.value = result.data.areaStats || []
+      trendData.value = result.data.trendData || []
+      faultTypeData.value = result.data.faultTypeData || []
+      
+      // 渲染图表
+      renderTrendChart()
+      renderFaultChart()
+    }
+  } catch (error) {
+    console.error('加载统计数据失败:', error)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// 渲染工单趋势图
+const renderTrendChart = () => {
+  if (!trendChartRef.value) return
+  
+  if (trendChart) {
+    trendChart.destroy()
+  }
+  
+  const ctx = trendChartRef.value.getContext('2d')
+  if (!ctx) return
+  
+  const labels = trendData.value.map(item => item.date)
+  const data = trendData.value.map(item => item.count)
+  
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: '工单数量',
+        data,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        tension: 0.4,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1
+          }
+        }
+      }
+    }
+  })
+}
+
+// 渲染故障类型分布图
+const renderFaultChart = () => {
+  if (!faultChartRef.value) return
+  
+  if (faultChart) {
+    faultChart.destroy()
+  }
+  
+  const ctx = faultChartRef.value.getContext('2d')
+  if (!ctx) return
+  
+  const labels = faultTypeData.value.map(item => item.name)
+  const data = faultTypeData.value.map(item => item.count)
+  const colors = [
+    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+    '#ec4899', '#14b8a6', '#f97316', '#06b6d4', '#84cc16'
+  ]
+  
+  faultChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colors.slice(0, data.length),
+        borderWidth: 2,
+        borderColor: '#ffffff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: {
+            padding: 15,
+            font: {
+              size: 12
+            }
+          }
+        }
+      }
+    }
+  })
+}
 
 const exportData = () => {
   alert('导出功能开发中')
@@ -324,4 +415,14 @@ const handleLogout = () => {
   authApi.logout()
   router.push('/admin/login')
 }
+
+onMounted(() => {
+  monthOptions.value = generateMonthOptions()
+  loadStatistics()
+})
+
+onUnmounted(() => {
+  if (trendChart) trendChart.destroy()
+  if (faultChart) faultChart.destroy()
+})
 </script>

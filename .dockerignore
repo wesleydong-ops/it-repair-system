@@ -1,0 +1,15 @@
+node_modules
+dist
+.git
+.vite
+.gitignore
+*.md
+.env
+.env.local
+test_full_workflow.py
+webapp.tar
+.DS_Store
+trae
+data
+certs
+logs
