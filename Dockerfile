@@ -1,6 +1,10 @@
 FROM node:20-alpine
 WORKDIR /app
 
+# 安装时区数据
+RUN apk add --no-cache tzdata
+ENV TZ=Asia/Shanghai
+
 # 复制依赖描述文件
 COPY package*.json ./
 

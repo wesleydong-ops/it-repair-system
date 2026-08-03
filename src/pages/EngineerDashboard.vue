@@ -308,11 +308,15 @@ const externalCompleteForm = reactive({
 })
 
 const pendingOrders = computed(() => {
-  return orders.value.filter(o => o.status === 'pending' && o.area === user.value.area && o.engineerId !== user.value.id)
+  return orders.value
+    .filter(o => o.status === 'pending' && o.area === user.value.area && o.engineerId !== user.value.id)
+    .sort((a, b) => Number(b.id) - Number(a.id)) // 最新的排最前面
 })
 
 const myOrders = computed(() => {
-  return orders.value.filter(o => o.engineerId === user.value.id)
+  return orders.value
+    .filter(o => o.engineerId === user.value.id)
+    .sort((a, b) => Number(b.id) - Number(a.id)) // 最新的排最前面
 })
 
 const pendingCount = computed(() => pendingOrders.value.length)

@@ -129,6 +129,7 @@
                   <div class="flex gap-2">
                     <button v-if="order.status === 'external_pending'" @click="approveOrder(order)" class="btn-sm-primary">审批通过</button>
                     <button v-if="order.status === 'external_pending'" @click="rejectOrder(order)" class="btn-sm-outline">驳回</button>
+                    <button v-if="order.status === 'completed'" @click="closeOrder(order)" class="btn-sm-primary">结案</button>
                     <button @click="viewOrder(order.id)" class="btn-sm-outline">详情</button>
                   </div>
                 </td>
@@ -188,7 +189,8 @@ const filteredOrders = computed(() => {
     result = result.filter(o => o.status === filterStatus.value)
   }
   
-  return result
+  // 最新的排最前面
+  return result.sort((a, b) => Number(b.id) - Number(a.id))
 })
 
 const pendingCount = computed(() => orders.value.filter(o => o.status === 'external_pending').length)
@@ -257,6 +259,18 @@ const rejectOrder = async (order: WorkOrder) => {
     alert('已驳回')
   } catch (error) {
     alert('操作失败')
+  }
+}
+
+const closeOrder = async (order: WorkOrder) => {
+  if (!confirm(`确认结案工单 ${order.orderNo}？`)) return
+  
+  try {
+    await workOrderApi.close(order.id)
+    await loadOrders()
+    alert('已结案')
+  } catch (error: any) {
+    alert(error.response?.data?.message || '操作失败')
   }
 }
 

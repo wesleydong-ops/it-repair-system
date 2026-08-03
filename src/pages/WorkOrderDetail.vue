@@ -47,6 +47,10 @@
                 <span class="text-gray-800 font-medium">{{ order.applicantName }}</span>
               </div>
               <div class="flex justify-between items-center py-3 border-b border-gray-200">
+                <span class="text-gray-500">工号</span>
+                <span class="text-gray-800 font-medium">{{ order.employeeId || '-' }}</span>
+              </div>
+              <div class="flex justify-between items-center py-3 border-b border-gray-200">
                 <span class="text-gray-500">部门</span>
                 <span class="text-gray-800">{{ order.department || '-' }}</span>
               </div>
@@ -160,7 +164,7 @@
             <CheckCircle class="w-4 h-4" />
             完成维修
           </button>
-          <button v-if="order.status === 'completed'" @click="handleClose" class="btn-primary">
+          <button v-if="canShowCloseButton" @click="handleClose" class="btn-primary">
             <Archive class="w-4 h-4" />
             结案
           </button>
@@ -286,6 +290,7 @@ const order = ref({
   id: '',
   orderNo: '',
   applicantName: '',
+  employeeId: '',
   department: '',
   location: '',
   extension: '',
@@ -357,14 +362,40 @@ const statusLogs = computed(() => {
   return logs
 })
 
-// 只有工程师和管理员才能看到操作按钮
-const showActionButtons = computed(() => {
+// 判断当前用户角色
+const currentUser = computed(() => {
   try {
-    const user = JSON.parse(localStorage.getItem('user') || '{}')
-    return user.role === 'engineer' || user.role === 'admin'
+    return JSON.parse(localStorage.getItem('user') || '{}')
   } catch {
-    return false
+    return {}
   }
+})
+
+// 判断是否为外修工单
+const isExternalRepair = computed(() => {
+  return order.value.externalReason && order.value.externalReason.trim() !== ''
+})
+
+// 只有工程师、管理员和采购员才能看到操作按钮
+const showActionButtons = computed(() => {
+  const role = currentUser.value.role
+  // 采购员只能看到外修工单的结案按钮
+  if (role === 'purchaser') {
+    return isExternalRepair.value && order.value.status === 'completed'
+  }
+  return role === 'engineer' || role === 'admin'
+})
+
+// 是否可以显示结案按钮
+const canShowCloseButton = computed(() => {
+  if (order.value.status !== 'completed') return false
+  const role = currentUser.value.role
+  // 外修工单只能由采购员结案
+  if (isExternalRepair.value) {
+    return role === 'purchaser' || role === 'admin'
+  }
+  // 普通工单由工程师或管理员结案
+  return role === 'engineer' || role === 'admin'
 })
 const showCompleteModal = ref(false)
 const showExternalModal = ref(false)

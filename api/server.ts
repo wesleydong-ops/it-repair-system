@@ -204,6 +204,7 @@ interface WorkOrder {
   id: string
   orderNo: string
   applicantName: string
+  employeeId: string
   department: string
   location: string
   extension: string
@@ -550,7 +551,7 @@ app.delete('/api/admin/users/:id', authenticateToken, requireRole('admin'), (req
 })
 
 app.post('/api/workorder/submit', async (req, res) => {
-  const { applicantName, department, location, extension, email, webexId, assetNo, deviceType, deviceLocation, projectId, description, repairType, notificationChannels, priority, area } = req.body
+  const { applicantName, employeeId, department, location, extension, email, webexId, assetNo, deviceType, deviceLocation, projectId, description, repairType, notificationChannels, priority, area } = req.body
 
   // 自动派单：查找对应区域的分组，按组内工程师当前工单数最少的分配
   // 注意：新工单保持 pending 状态，工程师可以抢单
@@ -596,6 +597,7 @@ app.post('/api/workorder/submit', async (req, res) => {
     id: Date.now().toString(),
     orderNo: `WO-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}-${String(workorders.length + 1).padStart(3, '0')}`,
     applicantName,
+    employeeId,
     department,
     location,
     extension,
@@ -651,6 +653,14 @@ app.post('/api/workorder/submit', async (req, res) => {
     sendEmail(email, `工单提交成功 - ${newOrder.orderNo}`, emailHtml)
   }
   
+  // Webex 通知
+  if (notificationChannels.includes('webex')) {
+    const webexText = `IT报修系统 - 工单提交成功\n\n尊敬的 ${applicantName} 先生/女士：\n\n您的报修工单已成功提交：\n工单号：${newOrder.orderNo}\n设备类型：${deviceType}\n资产编号：${assetNo}\n紧急等级：${priority === 'urgent' ? '紧急' : '普通'}\n故障描述：${description}\n\n系统将尽快为您分配工程师处理，请保持通讯畅通。\n查看工单进度：${systemSettings.systemUrl}/workorder/${newOrder.id}`
+    sendWebexMessage(webexId || '', webexText).catch(err => {
+      console.error('发送 Webex 通知失败:', err)
+    })
+  }
+  
   res.json({ success: true, orderNo: newOrder.orderNo, message: '工单提交成功' })
 })
 
@@ -671,6 +681,9 @@ app.get('/api/workorder/list', authenticateToken, (req, res) => {
     matched.push(o)
   }
   
+  // 按创建时间倒序排列，最新的排最前面（id 为 Date.now()，天然递增）
+  matched.sort((a, b) => Number(b.id) - Number(a.id))
+  
   const start = (Number(page) - 1) * Number(size)
   res.json({
     success: true,
@@ -680,6 +693,106 @@ app.get('/api/workorder/list', authenticateToken, (req, res) => {
 })
 
 // 首页公开接口（无需认证）
+// 辅助函数：标准化日期格式为 YYYY-MM
+const normalizeMonth = (dateStr: string): string => {
+  if (!dateStr) return ''
+  
+  // 处理 2026/6/17 15:48:48 格式
+  if (dateStr.includes('/')) {
+    const parts = dateStr.split(' ')[0].split('/')
+    const year = parts[0]
+    const month = parts[1].padStart(2, '0')
+    return `${year}-${month}`
+  }
+  
+  // 处理 2024-01-15 14:30:00 格式
+  return dateStr.substring(0, 7)
+}
+
+// 计算工作时长（小时），排除夜间时间（21:00-08:00）
+const calculateWorkingHours = (startTime: string, endTime: string): number => {
+  const start = new Date(startTime)
+  const end = new Date(endTime)
+  
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) {
+    return 0
+  }
+  
+  let totalMinutes = 0
+  const current = new Date(start)
+  current.setHours(0, 0, 0, 0) // 从今天0点开始
+  
+  // 逐天处理
+  while (current <= end) {
+    // 今天的工作时间段
+    const workStart = new Date(current)
+    workStart.setHours(8, 0, 0, 0)
+    
+    const workEnd = new Date(current)
+    workEnd.setHours(21, 0, 0, 0)
+    
+    // 确定今天的实际开始时间
+    const actualStart = start > workStart ? start : workStart
+    
+    // 确定今天的实际结束时间
+    const actualEnd = end < workEnd ? end : workEnd
+    
+    // 如果实际开始时间小于实际结束时间，说明有工作时间
+    if (actualStart < actualEnd) {
+      totalMinutes += (actualEnd.getTime() - actualStart.getTime()) / (1000 * 60)
+    }
+    
+    // 移动到下一天
+    current.setDate(current.getDate() + 1)
+  }
+  
+  return Math.round((totalMinutes / 60) * 10) / 10
+}
+
+// 发送 Webex 消息
+const sendWebexMessage = async (toPersonId: string, text: string): Promise<boolean> => {
+  try {
+    if (!systemSettings.webexToken) {
+      console.error('Webex Token 未配置')
+      return false
+    }
+
+    const webexUrl = 'https://webexapis.com/v1/messages'
+    let message: any = { text }
+
+    // 如果提供了用户 ID，发送给个人；否则发送到配置的 Room
+    if (toPersonId) {
+      message.toPersonId = toPersonId
+    } else if (systemSettings.webexRoomId) {
+      message.roomId = systemSettings.webexRoomId
+    } else {
+      console.error('Webex 目标未指定且未配置 Room ID')
+      return false
+    }
+
+    const response = await fetch(webexUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${systemSettings.webexToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(message)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: '未知错误' }))
+      const msg = (errorData as { message?: string })?.message || response.statusText
+      console.error('Webex 消息发送失败:', msg)
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error('Webex 消息发送错误:', error)
+    return false
+  }
+}
+
 app.get('/api/home/stats', (_req, res) => {
   // 按自然月统计（当月）
   const now = new Date()
@@ -694,7 +807,7 @@ app.get('/api/home/stats', (_req, res) => {
 
   for (const order of workorders) {
     if (!order.createTime) continue
-    const orderMonth = order.createTime.substring(0, 7)
+    const orderMonth = normalizeMonth(order.createTime)
     if (orderMonth !== currentMonth) continue
 
     monthlyCount++
@@ -702,25 +815,20 @@ app.get('/api/home/stats', (_req, res) => {
     if (order.area === 'CK') areaCK++
     if (order.status === 'completed' || order.status === 'closed') {
       monthlyCompleted++
-      // 计算维修时长（创建时间到更新时间的小时差）
+      // 计算维修时长（排除夜间时间 21:00-08:00）
       if (order.updateTime) {
-        const create = new Date(order.createTime).getTime()
-        const update = new Date(order.updateTime).getTime()
-        if (!isNaN(create) && !isNaN(update)) {
-          totalDuration += (update - create) / (1000 * 60 * 60)
+        const hours = calculateWorkingHours(order.createTime, order.updateTime)
+        if (hours > 0) {
+          totalDuration += hours
           durationCount++
         }
       }
     }
   }
 
-  // 最近3笔工单
+  // 最近3笔工单（按 id 倒序，最新的排最前面）
   const recent = [...workorders]
-    .sort((a, b) => {
-      const dateA = new Date(a.createTime).getTime()
-      const dateB = new Date(b.createTime).getTime()
-      return dateB - dateA
-    })
+    .sort((a, b) => Number(b.id) - Number(a.id))
     .slice(0, 3)
     .map(o => ({
       id: o.id,
@@ -802,6 +910,14 @@ app.post('/api/workorder/:id/accept', authenticateToken, async (req, res) => {
     sendEmail(user.email, `新工单通知 - ${order.orderNo}`, emailHtml)
   }
   
+  // Webex 通知工程师
+  if (order.notificationChannels.includes('webex') && user?.webexId) {
+    const webexText = `IT报修系统 - 新工单通知\n\n尊敬的 ${user.name} 先生/女士：\n\n您有新的报修工单需要处理：\n工单号：${order.orderNo}\n设备类型：${order.deviceType}\n申请人：${order.applicantName}\n故障描述：${order.description}\n\n请尽快处理工单。`
+    sendWebexMessage(user.webexId, webexText).catch(err => {
+      console.error('发送 Webex 通知失败:', err)
+    })
+  }
+  
   res.json({ success: true, message: '接单成功' })
 })
 
@@ -851,6 +967,7 @@ app.post('/api/workorder/:id/complete', authenticateToken, (req, res) => {
 
 app.post('/api/workorder/:id/close', authenticateToken, async (req, res) => {
   const { id } = req.params
+  const userId = (req as any).user.id
   
   const order = workorders.find(o => o.id === id)
   
@@ -860,6 +977,17 @@ app.post('/api/workorder/:id/close', authenticateToken, async (req, res) => {
   
   if (order.status !== 'completed') {
     return res.status(400).json({ success: false, message: '工单状态不允许结案' })
+  }
+  
+  // 判断是否为外修工单（通过检查是否有外修记录）
+  const isExternalRepair = order.externalReason && order.externalReason.trim() !== ''
+  
+  if (isExternalRepair) {
+    // 外修工单只能由采购员结案
+    const user = users.find(u => u.id === userId)
+    if (!user || user.role !== 'purchaser') {
+      return res.status(403).json({ success: false, message: '外修工单只能由采购员结案' })
+    }
   }
   
   order.status = 'closed'
@@ -889,6 +1017,14 @@ app.post('/api/workorder/:id/close', authenticateToken, async (req, res) => {
     } catch (error) {
       console.error('发送结案通知邮件失败:', error)
     }
+  }
+  
+  // Webex 通知申请人
+  if (order.notificationChannels.includes('webex')) {
+    const webexText = `IT报修系统 - 工单已结案\n\n尊敬的 ${order.applicantName} 先生/女士：\n\n您提交的报修工单已完成结案：\n工单号：${order.orderNo}\n设备类型：${order.deviceType}\n资产编号：${order.assetNo}\n${order.faultReason ? `故障原因：${order.faultReason}\n` : ''}${order.solution ? `处理方案：${order.solution}\n` : ''}${order.repairRecord ? `维修记录：${order.repairRecord}\n` : ''}\n感谢您使用IT报修系统，如有其他问题请随时提交新工单。`
+    sendWebexMessage(order.webexId || '', webexText).catch(err => {
+      console.error('发送 Webex 通知失败:', err)
+    })
   }
   
   res.json({ success: true, message: '结案成功，已通知开单人' })
@@ -990,7 +1126,7 @@ app.post('/api/workorder/:id/external/reject', authenticateToken, (req, res) => 
   res.json({ success: true, message: '已驳回外修申请' })
 })
 
-app.post('/api/workorder/:id/external/complete', authenticateToken, (req, res) => {
+app.post('/api/workorder/:id/external/complete', authenticateToken, async (req, res) => {
   const { id } = req.params
   const { repairRecord, faultReason, solution } = req.body
   
@@ -1011,7 +1147,39 @@ app.post('/api/workorder/:id/external/complete', authenticateToken, (req, res) =
   order.updateTime = new Date().toLocaleString('zh-CN')
   saveWorkorders(workorders)
   
-  res.json({ success: true, message: '外修完成' })
+  // 通知采购员外修已完成，等待结案
+  const purchaseUsers = users.filter(u => u.role === 'purchaser' && u.isActive)
+  for (const user of purchaseUsers) {
+    if (user.email) {
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #1E3A5F; border-bottom: 2px solid #6BB3D9; padding-bottom: 10px;">IT报修系统 - 外修完成通知</h2>
+          <p>尊敬的 ${user.name} 先生/女士：</p>
+          <p>外修工单已完成，请登录系统进行结案操作：</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>工单号：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${order.orderNo}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>设备类型：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${order.deviceType}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>申请人：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${order.applicantName}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>外修原因：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${order.externalReason}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>送修单位：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${order.externalCompany}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>预估费用：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${order.externalCost} 元</td></tr>
+            ${repairRecord ? `<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>维修记录：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${repairRecord}</td></tr>` : ''}
+            ${faultReason ? `<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>故障原因：</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${faultReason}</td></tr>` : ''}
+            ${solution ? `<tr><td style="padding: 8px;"><strong>处理方案：</strong></td><td style="padding: 8px;">${solution}</td></tr>` : ''}
+          </table>
+          <p>请尽快登录系统进行结案操作。</p>
+          <p style="color: #999; font-size: 12px;">此邮件由系统自动发送，请勿回复。</p>
+        </div>
+      `
+      try {
+        await sendEmail(user.email, `外修完成通知 - ${order.orderNo}`, emailHtml)
+      } catch (error) {
+        console.error('发送外修完成通知邮件失败:', error)
+      }
+    }
+  }
+  
+  res.json({ success: true, message: '外修完成，已通知采购员结案' })
 })
 
 app.get('/api/admin/groups', authenticateToken, requireRole('admin'), (_req, res) => {
@@ -1204,9 +1372,9 @@ app.get('/api/admin/statistics', authenticateToken, requireRole('admin'), (req, 
   const now = new Date()
   const targetMonth = monthParam === 'all' ? '' : (monthParam || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
 
-  // 按月份过滤工单
+  // 按月份过滤工单（兼容不同日期格式）
   const filtered = targetMonth
-    ? workorders.filter(o => o.createTime && o.createTime.substring(0, 7) === targetMonth)
+    ? workorders.filter(o => o.createTime && normalizeMonth(o.createTime) === targetMonth)
     : workorders
 
   // 单次遍历计算所有统计数据
@@ -1245,12 +1413,11 @@ app.get('/api/admin/statistics', authenticateToken, requireRole('admin'), (req, 
       trendMap.set(date, (trendMap.get(date) || 0) + 1)
     }
 
-    // 计算维修时长
+    // 计算维修时长（排除夜间时间 21:00-08:00）
     if (order.createTime && order.updateTime && (order.status === 'completed' || order.status === 'closed')) {
-      const create = new Date(order.createTime).getTime()
-      const update = new Date(order.updateTime).getTime()
-      if (!isNaN(create) && !isNaN(update)) {
-        totalDuration += (update - create) / (1000 * 60 * 60)
+      const hours = calculateWorkingHours(order.createTime, order.updateTime)
+      if (hours > 0) {
+        totalDuration += hours
         durationCount++
       }
     }
@@ -1269,10 +1436,10 @@ app.get('/api/admin/statistics', authenticateToken, requireRole('admin'), (req, 
       if (order.status === 'completed' || order.status === 'closed') {
         stats.completedCount++
         if (order.createTime && order.updateTime) {
-          const create = new Date(order.createTime).getTime()
-          const update = new Date(order.updateTime).getTime()
-          if (!isNaN(create) && !isNaN(update)) {
-            stats.totalDuration += (update - create) / (1000 * 60 * 60)
+          // 计算维修时长（排除夜间时间 21:00-08:00）
+          const hours = calculateWorkingHours(order.createTime, order.updateTime)
+          if (hours > 0) {
+            stats.totalDuration += hours
             stats.durationCount++
           }
         }

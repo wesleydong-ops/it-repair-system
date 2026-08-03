@@ -43,6 +43,20 @@
               </div>
 
               <div class="form-group">
+                <label class="form-label">
+                  <span class="text-red-500">*</span> 工号
+                </label>
+                <input
+                  v-model="form.employeeId"
+                  type="text"
+                  class="form-input"
+                  placeholder="加域帐号默认为工号"
+                  @blur="validateField('employeeId')"
+                />
+                <p v-if="errors.employeeId" class="text-red-500 text-sm mt-2">{{ errors.employeeId }}</p>
+              </div>
+
+              <div class="form-group">
                 <label class="form-label">所属部门</label>
                 <input
                   v-model="form.department"
@@ -252,6 +266,20 @@
               <p v-if="errors.notificationChannels" class="text-red-500 text-sm mt-2">{{ errors.notificationChannels }}</p>
             </div>
 
+            <!-- Webex ID 输入框，仅在选择了 Webex 通知时显示 -->
+            <div v-if="form.notificationChannels.includes('webex')" class="form-group mt-4">
+              <label class="form-label">
+                Webex ID（选填）
+              </label>
+              <input
+                v-model="form.webexId"
+                type="text"
+                class="form-input"
+                placeholder="请输入您的 Webex ID（如：user@example.com）"
+              />
+              <p class="text-gray-500 text-sm mt-1">填写后将通过 Webex 私聊接收通知，不填则发送到公共频道</p>
+            </div>
+
             <div class="form-group mt-5">
               <label class="form-label">
                 <span class="text-red-500">*</span> 紧急等级
@@ -355,6 +383,7 @@ const goHome = () => {
 
 const form = reactive({
   applicantName: '',
+  employeeId: '',
   department: '',
   extension: '',
   emailPrefix: '',
@@ -388,6 +417,9 @@ const validateField = (field: string) => {
   switch (field) {
     case 'applicantName':
       if (!form.applicantName.trim()) errors[field] = '请输入姓名'
+      break
+    case 'employeeId':
+      if (!form.employeeId.trim()) errors[field] = '请输入工号（加域帐号默认为工号）'
       break
     case 'department':
       break
@@ -436,7 +468,7 @@ const validateField = (field: string) => {
 const validateAll = (): boolean => {
   let isValid = true
   
-  const fields = ['applicantName', 'extension', 'email', 'assetNo', 'deviceType', 'projectId', 'area', 'description', 'notificationChannels', 'priority']
+  const fields = ['applicantName', 'employeeId', 'extension', 'email', 'assetNo', 'deviceType', 'projectId', 'area', 'description', 'notificationChannels', 'priority']
   fields.forEach(field => {
     validateField(field)
     if (errors[field]) isValid = false
@@ -454,6 +486,7 @@ const handleSubmit = async () => {
     const email = form.emailPrefix.trim() ? `${form.emailPrefix}@foxlink.com` : ''
     const response = await workOrderApi.submit({
       applicantName: form.applicantName,
+      employeeId: form.employeeId,
       department: form.department,
       extension: form.extension,
       email: email,
@@ -466,7 +499,7 @@ const handleSubmit = async () => {
       priority: form.priority || 'normal',
       area: form.area,
       location: '',
-      webexId: '',
+      webexId: form.webexId || '',
       deviceLocation: ''
     })
     
@@ -485,6 +518,7 @@ const handleSubmit = async () => {
 const resetForm = () => {
   showSuccess.value = false
   form.applicantName = ''
+  form.employeeId = ''
   form.department = ''
   form.extension = ''
   form.emailPrefix = ''

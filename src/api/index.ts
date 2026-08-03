@@ -67,6 +67,7 @@ export interface WorkOrder {
   id: string
   orderNo: string
   applicantName: string
+  employeeId: string
   department: string
   location: string
   extension: string
