@@ -120,12 +120,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { User, Lock, Eye, EyeOff, Loader2, X, Home } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { authApi } from '../api'
 
 const router = useRouter()
+
+// 检查是否已登录，如果已登录则直接跳转到管理后台
+onMounted(() => {
+  const token = localStorage.getItem('token')
+  const userStr = localStorage.getItem('user')
+  
+  if (token && userStr) {
+    try {
+      const user = JSON.parse(userStr)
+      // 管理员账号跳转到管理后台
+      if (user.role === 'admin') {
+        router.push('/admin')
+      }
+    } catch (e) {
+      // 解析失败，清除登录状态
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+    }
+  }
+})
 
 const form = reactive({
   username: '',

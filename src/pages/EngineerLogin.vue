@@ -116,12 +116,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { User, Lock, Eye, EyeOff, Loader2, X } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { authApi } from '../api'
 
 const router = useRouter()
+
+// 检查是否已登录，如果已登录则直接跳转到工程师仪表板
+onMounted(() => {
+  const token = localStorage.getItem('token')
+  const userStr = localStorage.getItem('user')
+  
+  if (token && userStr) {
+    try {
+      const user = JSON.parse(userStr)
+      // 工程师账号跳转到工程师仪表板
+      if (user.role === 'engineer') {
+        router.push('/engineer')
+      }
+    } catch (e) {
+      // 解析失败，清除登录状态
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+    }
+  }
+})
 
 const form = reactive({
   username: '',

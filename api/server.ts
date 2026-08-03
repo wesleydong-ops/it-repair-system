@@ -351,7 +351,7 @@ app.post('/api/admin/login', async (req, res) => {
     return res.status(401).json({ success: false, message: '密码错误' })
   }
   
-  const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, config.jwtSecret, { expiresIn: '1h' })
+  const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, config.jwtSecret, { expiresIn: '12h' })
   
   res.json({
     success: true,
@@ -760,9 +760,9 @@ const sendWebexMessage = async (toPersonId: string, text: string): Promise<boole
     const webexUrl = 'https://webexapis.com/v1/messages'
     let message: any = { text }
 
-    // 如果提供了用户 ID，发送给个人；否则发送到配置的 Room
+    // 如果提供了用户邮箱，发送给个人；否则发送到配置的 Room
     if (toPersonId) {
-      message.toPersonId = toPersonId
+      message.toPersonEmail = toPersonId
     } else if (systemSettings.webexRoomId) {
       message.roomId = systemSettings.webexRoomId
     } else {

@@ -113,25 +113,51 @@ const router = createRouter({
   routes
 })
 
+// 检查 token 是否过期
+function isTokenExpired(): boolean {
+  const token = localStorage.getItem('token')
+  if (!token) return true
+  
+  try {
+    // JWT 格式：header.payload.signature
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    // exp 是秒级时间戳
+    return Date.now() >= payload.exp * 1000
+  } catch {
+    return true
+  }
+}
+
+// 清除登录状态并根据角色跳转到对应登录页
+function clearAndRedirect(requiredRole: string | string[], next: Function) {
+  localStorage.removeItem('token')
+  localStorage.removeItem('user')
+  if (Array.isArray(requiredRole)) {
+    next('/admin/login')
+  } else if (requiredRole === 'engineer') {
+    next('/engineer/login')
+  } else if (requiredRole === 'purchaser') {
+    next('/purchaser/login')
+  } else {
+    next('/admin/login')
+  }
+}
+
 router.beforeEach((to, from, next) => {
-  const isLoggedIn = localStorage.getItem('token') !== null
+  const hasToken = localStorage.getItem('token') !== null
+  const tokenExpired = isTokenExpired()
+  
+  // token 过期时清除登录状态
+  if (hasToken && tokenExpired) {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+  }
+  
+  const isLoggedIn = hasToken && !tokenExpired
   
   if (to.meta.requiresAuth && !isLoggedIn) {
     const requiredRole = to.meta.role as string | string[]
-    if (Array.isArray(requiredRole)) {
-      // 管理员页面
-      if (requiredRole.includes('admin')) {
-        next('/admin/login')
-      } else {
-        next('/admin/login')
-      }
-    } else if (requiredRole === 'engineer') {
-      next('/engineer/login')
-    } else if (requiredRole === 'purchaser') {
-      next('/purchaser/login')
-    } else {
-      next('/admin/login')
-    }
+    clearAndRedirect(requiredRole, next)
     return
   }
   
