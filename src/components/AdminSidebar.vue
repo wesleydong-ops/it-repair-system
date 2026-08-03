@@ -32,6 +32,10 @@
       </ul>
     </nav>
     <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100">
+      <div class="mb-2 px-4 py-2 text-sm text-gray-600">
+        <span class="text-gray-400">当前登录：</span>
+        <span class="font-medium text-darkblue">{{ currentUser }}</span>
+      </div>
       <button @click="handleLogout" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-red-50 hover:text-red-500 rounded-xl transition-all duration-300 w-full">
         <LogOut class="w-5 h-5" />
         退出登录
@@ -58,6 +62,16 @@ const userRole = computed(() => {
     return user.role || ''
   } catch {
     return ''
+  }
+})
+
+// 当前登录帐号
+const currentUser = computed(() => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    return user.name || user.username || '未登录'
+  } catch {
+    return '未登录'
   }
 })
 

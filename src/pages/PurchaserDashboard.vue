@@ -24,6 +24,10 @@
         </ul>
       </nav>
       <div class="absolute bottom-0 left-0 right-0 p-4 border-t">
+        <div class="mb-2 px-4 py-2 text-sm text-gray-600">
+          <span class="text-gray-400">当前登录：</span>
+          <span class="font-medium text-darkblue">{{ currentUser }}</span>
+        </div>
         <button @click="handleLogout" class="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors w-full">
           <LogOut class="w-5 h-5" />
           退出登录
@@ -155,6 +159,16 @@ import { Home, LogOut, ClipboardList, Clock, Wrench, CheckCircle } from 'lucide-
 import { authApi, workOrderApi } from '../api'
 
 const router = useRouter()
+
+// 当前登录帐号
+const currentUser = computed(() => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    return user.name || user.username || '未登录'
+  } catch {
+    return '未登录'
+  }
+})
 
 const goHome = () => {
   window.location.href = '/'
