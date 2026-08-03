@@ -266,20 +266,6 @@
               <p v-if="errors.notificationChannels" class="text-red-500 text-sm mt-2">{{ errors.notificationChannels }}</p>
             </div>
 
-            <!-- Webex ID 输入框，仅在选择了 Webex 通知时显示 -->
-            <div v-if="form.notificationChannels.includes('webex')" class="form-group mt-4">
-              <label class="form-label">
-                Webex ID（选填）
-              </label>
-              <input
-                v-model="form.webexId"
-                type="text"
-                class="form-input"
-                placeholder="请输入您的 Webex ID（如：user@example.com）"
-              />
-              <p class="text-gray-500 text-sm mt-1">填写后将通过 Webex 私聊接收通知，不填则发送到公共频道</p>
-            </div>
-
             <div class="form-group mt-5">
               <label class="form-label">
                 <span class="text-red-500">*</span> 紧急等级
@@ -356,9 +342,14 @@
           <p class="text-gray-600 mb-2">您的工单号：</p>
           <p class="text-2xl font-mono font-bold text-primary-600 mb-4">{{ submittedOrderNo }}</p>
           <p class="text-gray-500 text-sm mb-6">系统将尽快为您分配工程师，请保持通讯畅通</p>
-          <button @click="resetForm" class="btn-primary w-full">
-            提交新工单
-          </button>
+          <div class="space-y-3">
+            <button @click="goHome" class="btn-primary w-full">
+              返回首页
+            </button>
+            <button @click="resetForm" class="btn-outline w-full">
+              提交新工单
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -499,13 +490,18 @@ const handleSubmit = async () => {
       priority: form.priority || 'normal',
       area: form.area,
       location: '',
-      webexId: form.webexId || '',
+      // 如果选择了 webex 通知，自动使用 email 作为 webexId
+      webexId: form.notificationChannels.includes('webex') ? email : '',
       deviceLocation: ''
     })
     
     if (response.data.success) {
       submittedOrderNo.value = response.data.orderNo
       showSuccess.value = true
+      // 提交成功后跳转到首页
+      setTimeout(() => {
+        window.location.href = '/'
+      }, 1500)
     }
   } catch (error) {
     console.error('提交工单失败:', error)
